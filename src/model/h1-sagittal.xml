@@ -1,0 +1,152 @@
+<mujoco model="AION H1 open field trainer">
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002" integrator="implicitfast" cone="elliptic" gravity="0 0 -9.81"/>
+  <statistic center="0 0 1" extent="18"/>
+
+  <default>
+    <joint damping="1.5" armature="0.015" limited="true"/>
+    <geom friction="1.0 0.005 0.0001" condim="4" contype="1" conaffinity="0" solref="0.012 1" solimp="0.92 0.98 0.002"/>
+    <position kp="180" kv="18" ctrllimited="true" forcelimited="true"/>
+    <default class="leg">
+      <joint damping="2.2" armature="0.025"/>
+      <geom rgba="0.76 0.79 0.75 1"/>
+    </default>
+    <default class="accent">
+      <geom rgba="0.68 1 0.12 1"/>
+    </default>
+    <default class="dark">
+      <geom rgba="0.075 0.09 0.085 1"/>
+    </default>
+    <default class="world">
+      <geom contype="0" conaffinity="1" friction="1.05 0.005 0.0001" rgba="0.13 0.16 0.14 1"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <geom name="field_floor" type="plane" size="60 60 0.1" rgba="0.045 0.05 0.047 1"
+          contype="0" conaffinity="1" friction="1.05 0.005 0.0001"/>
+    <light name="key" pos="2 -4 7" dir="0.2 0.3 -1" diffuse="1 1 1" castshadow="true"/>
+
+    <geom name="crate_a" class="world" type="box" pos="6 4 0.55" size="0.7 0.7 0.55"/>
+    <geom name="crate_b" class="world" type="box" pos="7.5 4.7 0.35" size="0.5 0.5 0.35" rgba="0.28 0.34 0.29 1"/>
+    <geom name="crate_c" class="world" type="box" pos="-6 -7 0.8" size="0.9 0.9 0.8"/>
+    <geom name="ramp" class="world" type="box" pos="9 -4 0.34" size="2.8 1.35 0.14" euler="0 -0.1 0" rgba="0.19 0.23 0.2 1"/>
+    <geom name="low_wall" class="world" type="box" pos="-3 8 0.45" size="3.2 0.25 0.45"/>
+    <geom name="gate_left" class="world" type="box" pos="-9 3 1.5" size="0.25 0.25 1.5"/>
+    <geom name="gate_right" class="world" type="box" pos="-9 6 1.5" size="0.25 0.25 1.5"/>
+    <geom name="gate_top" class="world" type="box" pos="-9 4.5 2.9" size="0.25 1.75 0.12" rgba="0.68 1 0.12 1"/>
+    <geom name="beacon_north" class="world" type="cylinder" pos="2 15 0.35" size="0.3 0.35" rgba="0.68 1 0.12 1"/>
+    <geom name="beacon_west" class="world" type="cylinder" pos="-15 -2 0.35" size="0.3 0.35" rgba="0.68 1 0.12 1"/>
+    <geom name="beacon_east" class="world" type="cylinder" pos="15 -9 0.35" size="0.3 0.35" rgba="0.68 1 0.12 1"/>
+
+    <body name="pelvis" pos="0 0 0.89">
+      <joint name="root_x" type="slide" axis="1 0 0" limited="false" damping="0.1"/>
+      <joint name="root_y" type="slide" axis="0 1 0" limited="false" damping="0.1"/>
+      <joint name="root_z" type="slide" axis="0 0 1" range="-0.75 0.8" damping="0.1"/>
+      <joint name="root_yaw" type="hinge" axis="0 0 1" limited="false" damping="0.4"/>
+      <joint name="root_roll" type="hinge" axis="1 0 0" range="-1.2 1.2" damping="0.6"/>
+      <joint name="root_pitch" type="hinge" axis="0 1 0" range="-1.45 1.45" damping="0.6"/>
+      <geom name="pelvis_shell" type="box" size="0.13 0.16 0.095" mass="7.5" rgba="0.13 0.15 0.14 1"/>
+      <geom name="pelvis_core" class="accent" type="box" size="0.07 0.168 0.028" pos="0.065 0 0.025" mass="0.5" contype="0" conaffinity="0"/>
+
+      <body name="torso" pos="0 0 0.14">
+        <geom name="torso_shell" type="box" size="0.145 0.195 0.23" pos="0 0 0.19" mass="13.5" rgba="0.70 0.73 0.70 1"/>
+        <geom name="torso_panel" class="dark" type="box" size="0.151 0.13 0.11" pos="0.005 0 0.22" mass="0.5" contype="0" conaffinity="0"/>
+        <geom name="torso_light" class="accent" type="box" size="0.156 0.055 0.012" pos="0.006 0 0.31" mass="0.05" contype="0" conaffinity="0"/>
+        <site name="site_imu_torso" pos="0 0 0.34" size="0.018" rgba="0.68 1 0.12 1"/>
+
+        <body name="head" pos="0 0 0.51">
+          <geom name="neck" class="dark" type="cylinder" size="0.055 0.055" mass="0.5"/>
+          <geom name="head_shell" type="box" size="0.115 0.105 0.105" pos="0 0 0.12" mass="2.6" rgba="0.76 0.79 0.75 1"/>
+          <geom name="visor" class="dark" type="box" size="0.119 0.09 0.035" pos="0.008 0 0.14" mass="0.05" contype="0" conaffinity="0"/>
+          <geom name="visor_signal" class="accent" type="box" size="0.121 0.045 0.008" pos="0.01 0 0.14" mass="0.02" contype="0" conaffinity="0"/>
+        </body>
+
+        <body name="left_upper_arm" pos="0 0.255 0.36">
+          <joint name="left_shoulder_pitch" axis="0 1 0" range="-1.4 1.4"/>
+          <geom name="left_upper_arm_geom" class="leg" type="capsule" fromto="0 0 0 0 0 -0.29" size="0.055" mass="1.7"/>
+          <body name="left_forearm" pos="0 0 -0.29">
+            <joint name="left_elbow_pitch" axis="0 1 0" range="0 2.2"/>
+            <geom name="left_forearm_geom" class="dark" type="capsule" fromto="0 0 0 0 0 -0.25" size="0.048" mass="0.85"/>
+            <geom name="left_hand" class="accent" type="box" size="0.045 0.04 0.07" pos="0 0 -0.28" mass="0.2"/>
+          </body>
+        </body>
+
+        <body name="right_upper_arm" pos="0 -0.255 0.36">
+          <joint name="right_shoulder_pitch" axis="0 1 0" range="-1.4 1.4"/>
+          <geom name="right_upper_arm_geom" class="leg" type="capsule" fromto="0 0 0 0 0 -0.29" size="0.055" mass="1.7"/>
+          <body name="right_forearm" pos="0 0 -0.29">
+            <joint name="right_elbow_pitch" axis="0 1 0" range="0 2.2"/>
+            <geom name="right_forearm_geom" class="dark" type="capsule" fromto="0 0 0 0 0 -0.25" size="0.048" mass="0.85"/>
+            <geom name="right_hand" class="accent" type="box" size="0.045 0.04 0.07" pos="0 0 -0.28" mass="0.2"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="left_thigh" pos="0 0.1 -0.09">
+        <joint name="left_hip_roll" axis="1 0 0" range="-0.45 0.45"/>
+        <joint name="left_hip_pitch" axis="0 1 0" range="-1.2 0.8"/>
+        <geom name="left_thigh_geom" class="leg" type="capsule" fromto="0 0 0 0 0 -0.37" size="0.075" mass="4.8"/>
+        <body name="left_shin" pos="0 0 -0.37">
+          <joint name="left_knee_pitch" axis="0 1 0" range="0 2.1"/>
+          <geom name="left_knee" class="accent" type="sphere" size="0.083" mass="0.4"/>
+          <geom name="left_shin_geom" class="dark" type="capsule" fromto="0 0 -0.02 0 0 -0.36" size="0.062" mass="3.2"/>
+          <body name="left_foot" pos="0 0 -0.36">
+            <joint name="left_ankle_pitch" axis="0 1 0" range="-0.75 0.55"/>
+            <joint name="left_ankle_roll" axis="1 0 0" range="-0.35 0.35"/>
+            <geom name="left_foot_geom" type="box" size="0.145 0.068 0.038" pos="0.065 0 -0.045" mass="1.35" rgba="0.68 1 0.12 1" friction="1.2 0.006 0.0001"/>
+            <site name="site_left_sole" type="box" size="0.13 0.06 0.018" pos="0.065 0 -0.079" rgba="0.68 1 0.12 0.14"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="right_thigh" pos="0 -0.1 -0.09">
+        <joint name="right_hip_roll" axis="1 0 0" range="-0.45 0.45"/>
+        <joint name="right_hip_pitch" axis="0 1 0" range="-1.2 0.8"/>
+        <geom name="right_thigh_geom" class="leg" type="capsule" fromto="0 0 0 0 0 -0.37" size="0.075" mass="4.8"/>
+        <body name="right_shin" pos="0 0 -0.37">
+          <joint name="right_knee_pitch" axis="0 1 0" range="0 2.1"/>
+          <geom name="right_knee" class="accent" type="sphere" size="0.083" mass="0.4"/>
+          <geom name="right_shin_geom" class="dark" type="capsule" fromto="0 0 -0.02 0 0 -0.36" size="0.062" mass="3.2"/>
+          <body name="right_foot" pos="0 0 -0.36">
+            <joint name="right_ankle_pitch" axis="0 1 0" range="-0.75 0.55"/>
+            <joint name="right_ankle_roll" axis="1 0 0" range="-0.35 0.35"/>
+            <geom name="right_foot_geom" type="box" size="0.145 0.068 0.038" pos="0.065 0 -0.045" mass="1.35" rgba="0.68 1 0.12 1" friction="1.2 0.006 0.0001"/>
+            <site name="site_right_sole" type="box" size="0.13 0.06 0.018" pos="0.065 0 -0.079" rgba="0.68 1 0.12 0.14"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position name="left_hip_roll" joint="left_hip_roll" kp="150" kv="15" ctrlrange="-0.45 0.45" forcerange="-90 90"/>
+    <position name="left_hip_pitch" joint="left_hip_pitch" kp="230" kv="22" ctrlrange="-1.2 0.8" forcerange="-150 150"/>
+    <position name="left_knee_pitch" joint="left_knee_pitch" kp="260" kv="24" ctrlrange="0 2.1" forcerange="-180 180"/>
+    <position name="left_ankle_pitch" joint="left_ankle_pitch" kp="190" kv="19" ctrlrange="-0.75 0.55" forcerange="-110 110"/>
+    <position name="left_ankle_roll" joint="left_ankle_roll" kp="140" kv="14" ctrlrange="-0.35 0.35" forcerange="-65 65"/>
+    <position name="right_hip_roll" joint="right_hip_roll" kp="150" kv="15" ctrlrange="-0.45 0.45" forcerange="-90 90"/>
+    <position name="right_hip_pitch" joint="right_hip_pitch" kp="230" kv="22" ctrlrange="-1.2 0.8" forcerange="-150 150"/>
+    <position name="right_knee_pitch" joint="right_knee_pitch" kp="260" kv="24" ctrlrange="0 2.1" forcerange="-180 180"/>
+    <position name="right_ankle_pitch" joint="right_ankle_pitch" kp="190" kv="19" ctrlrange="-0.75 0.55" forcerange="-110 110"/>
+    <position name="right_ankle_roll" joint="right_ankle_roll" kp="140" kv="14" ctrlrange="-0.35 0.35" forcerange="-65 65"/>
+    <position name="left_shoulder_pitch" joint="left_shoulder_pitch" kp="70" kv="8" ctrlrange="-1.4 1.4" forcerange="-35 35"/>
+    <position name="left_elbow_pitch" joint="left_elbow_pitch" kp="55" kv="6" ctrlrange="0 2.2" forcerange="-25 25"/>
+    <position name="right_shoulder_pitch" joint="right_shoulder_pitch" kp="70" kv="8" ctrlrange="-1.4 1.4" forcerange="-35 35"/>
+    <position name="right_elbow_pitch" joint="right_elbow_pitch" kp="55" kv="6" ctrlrange="0 2.2" forcerange="-25 25"/>
+    <position name="balance_pitch" joint="root_pitch" kp="1200" kv="140" ctrlrange="-0.08 0.08" forcerange="-1500 1500"/>
+    <position name="balance_roll" joint="root_roll" kp="1200" kv="140" ctrlrange="-0.08 0.08" forcerange="-1500 1500"/>
+    <velocity name="pace_x" joint="root_x" kv="600" ctrlrange="-3 3" forcerange="-1000 1000"/>
+    <velocity name="pace_y" joint="root_y" kv="600" ctrlrange="-3 3" forcerange="-1000 1000"/>
+    <velocity name="turn_drive" joint="root_yaw" kv="380" ctrlrange="-1.8 1.8" forcerange="-700 700"/>
+    <position name="balance_height" joint="root_z" kp="1600" kv="170" ctrlrange="-0.1 0.15" forcerange="-500 1400"/>
+  </actuator>
+
+  <sensor>
+    <gyro name="imu_gyro" site="site_imu_torso"/>
+    <accelerometer name="imu_accel" site="site_imu_torso"/>
+    <framequat name="imu_quat" objtype="site" objname="site_imu_torso"/>
+    <touch name="touch_left_foot" site="site_left_sole"/>
+    <touch name="touch_right_foot" site="site_right_sole"/>
+  </sensor>
+</mujoco>
