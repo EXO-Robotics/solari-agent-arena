@@ -134,6 +134,10 @@ export class App {
       if (this.mode === "agent") {
         this.agentTrial.update(updated, engine.worldCollision, engine.fallen);
         this.advanceAgentCommand(engine.timestep, updated);
+        if (this.agentCommand === null) {
+          this.accumulator = 0;
+          break;
+        }
       }
       this.accumulator -= engine.timestep;
       steps += 1;

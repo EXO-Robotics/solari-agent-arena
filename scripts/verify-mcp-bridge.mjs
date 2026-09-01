@@ -54,7 +54,7 @@ try {
   const after = await callTool("arena_observe");
   if (opened.simulatedTimeSeconds !== 0 || before.simulatedTimeSeconds !== 0 || after.simulatedTimeSeconds !== 0) throw new Error("MCP observation advanced simulated time.");
   const acted = await callTool("arena_act", { drive: 1.2, turn: 0, durationMs: 800 });
-  if (acted.actionsUsed !== 1 || Math.abs(acted.simulatedTimeSeconds - 0.8) > 0.01) throw new Error("MCP action receipt mismatch.");
+  if (acted.actionsUsed !== 1 || Math.abs(acted.simulatedTimeSeconds - 0.8) > 0.01) throw new Error(`MCP action receipt mismatch: ${JSON.stringify(acted)}`);
   const transcript = await callTool("arena_transcript");
   if (transcript.actions.length !== 1 || transcript.actions[0].durationMs !== 800) throw new Error("MCP transcript mismatch.");
   const closed = await callTool("arena_close", { retainEvidence: true });
