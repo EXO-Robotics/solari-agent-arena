@@ -45,6 +45,7 @@ export class App {
   private readonly courseListings: CourseListing[] = [...COURSE_CATALOG];
   private activeCourse: CourseListing = this.courseListings.find((listing) => listing.course.courseId === "practice-first-steps-v1") ?? this.courseListings[0]!;
   private remoteTrack: RemoteTrack = "state-v1";
+  private remoteAvailability: "checking" | "ready" | "paused" | "unknown" = "checking";
   private remotePairing: { ticket: string; expiresAt: number; courseId: string; seed: number; track: RemoteTrack } | null = null;
   private agentCommand: {
     drive: number;
@@ -79,6 +80,7 @@ export class App {
       this.installAgentToolApi();
       if (!parameters.has("evidence")) {
         this.setMode("agent");
+        await this.checkRemoteAvailability();
         if (parameters.get("agent") !== "1") this.openStartScreen();
       }
       await this.installAgentSiteTools();
@@ -937,7 +939,10 @@ export class App {
     this.renderRemoteTrack();
     this.requireElement("#start-screen").classList.add("start-screen--visible");
     this.requireElement(".app-shell").setAttribute("inert", "");
-    window.setTimeout(() => this.requireElement("#start-connect").focus(), 60);
+    window.setTimeout(() => {
+      const copy = this.requireElement("#start-copy") as HTMLButtonElement;
+      (copy.disabled ? this.requireElement(".course-row--active") : copy).focus();
+    }, 60);
   }
 
   private closeStartScreen(): void {
@@ -987,7 +992,7 @@ export class App {
 
   private renderCourseLibrary(): void {
     this.requireElement("#course-list").innerHTML = this.courseListings.map((listing, index) => `
-      <button class="course-row${listing === this.activeCourse ? " course-row--active" : ""}" data-course-index="${index}">
+      <button class="course-row${listing === this.activeCourse ? " course-row--active" : ""}" data-course-index="${index}" aria-pressed="${listing === this.activeCourse}">
         <span class="course-row__map">${listing.course.checkpoints.map((_, point) => `<i style="--point:${point}"></i>`).join("")}</span>
         <span class="course-row__copy"><strong>${this.escapeHtml(listing.title)}</strong><small>${this.escapeHtml(listing.summary)}</small></span>
         <span class="course-row__meta"><b>${this.escapeHtml(listing.difficulty)}</b><em>${listing.authoritative ? "OFFICIAL SCORE" : listing.source === "imported" ? "LOCAL IMPORT" : "PRACTICE"}</em></span>
@@ -1014,15 +1019,32 @@ export class App {
     });
     const connect = this.requireElement("#start-connect") as HTMLButtonElement;
     const copy = this.requireElement("#start-copy") as HTMLButtonElement;
+    const status = this.requireElement("#remote-connect-status");
+    status.classList.toggle("remote-connect-status--paused", this.remoteAvailability === "paused");
     if (!this.remotePairing) {
-      connect.textContent = this.activeCourse.source === "imported" ? "LOCAL IMPORT ONLY" : "1 · CONNECT AGENT";
+      connect.textContent = this.activeCourse.source === "imported" ? "LOCAL IMPORT ONLY" : "CONNECT AGENT";
       connect.disabled = this.activeCourse.source === "imported";
-      copy.textContent = "2 · COPY MISSION ↗";
-      copy.disabled = true;
-      this.requireElement("#remote-connect-status").textContent = this.activeCourse.source === "imported"
+      copy.textContent = this.remoteAvailability === "checking" ? "CHECKING PRACTICE…" : this.remoteAvailability === "paused" ? "HOSTED PRACTICE PAUSED" : "START AGENT RUN ↗";
+      copy.disabled = this.activeCourse.source === "imported" || this.remoteAvailability === "checking" || this.remoteAvailability === "paused";
+      status.textContent = this.activeCourse.source === "imported"
         ? "Imported courses stay in this browser and cannot create a hosted session."
-        : "No clone or personal Solari key required. Practice is recorded and non-authoritative.";
+        : this.remoteAvailability === "checking"
+          ? "Checking hosted practice availability…"
+          : this.remoteAvailability === "paused"
+            ? "Hosted agent sessions are paused. The simulator and field manual remain available."
+            : "One click creates a recorded practice session and copies the exact agent mission.";
     }
+  }
+
+  private async checkRemoteAvailability(): Promise<void> {
+    try {
+      const response = await fetch("/api/arena-ticket", { method: "GET", headers: { accept: "application/json" } });
+      const body = await response.json() as { enabled?: boolean };
+      this.remoteAvailability = response.ok && body.enabled === false ? "paused" : response.ok && body.enabled === true ? "ready" : "unknown";
+    } catch {
+      this.remoteAvailability = "unknown";
+    }
+    this.renderRemoteTrack();
   }
 
   private async connectRemoteAgent(): Promise<boolean> {
@@ -1061,8 +1083,9 @@ export class App {
       return true;
     } catch (error) {
       this.remotePairing = null;
-      button.textContent = "1 · CONNECT AGENT";
+      button.textContent = "CONNECT AGENT";
       button.disabled = false;
+      copy.disabled = this.remoteAvailability === "paused";
       this.requireElement("#remote-connect-status").textContent = String(error instanceof Error ? error.message : error);
       return false;
     }
@@ -1324,11 +1347,13 @@ export class App {
         <div class="start-screen__veil"></div>
         <div class="start-screen__content">
           <header><span>SA / COURSE LIBRARY</span><button id="close-courses" aria-label="Close course library">×</button></header>
-          <div class="start-screen__intro"><small>AI ROBOT BENCHMARK</small><h1 id="start-title">Pick a course.<br/>Connect an agent.</h1><p>Create one recorded public practice session, then paste one mission into any MCP-capable agent. No clone or personal Solari key required.</p><div class="connection-preflight"><b>FIRST TIME WITH THIS AGENT?</b><span>Add <code>https://solari-agent-arena.vercel.app/mcp</code> once. A pasted prompt cannot attach tools to a new task by itself.</span><button data-copy-mcp-command data-copy-label="COPY MCP URL">COPY MCP URL</button></div><div class="track-picker" aria-label="Observation track"><span>CHOOSE OBSERVATION TRACK</span><div><button class="track-choice track-choice--active" data-remote-track="state-v1" aria-pressed="true"><b>STATE</b><small>Pose, heading, speed, checkpoints. No camera.</small></button><button class="track-choice" data-remote-track="vision-v1" aria-pressed="false"><b>VISION</b><small>Arena image, phase, progress, and budget. No pose coordinates.</small></button></div></div></div>
+          <div class="start-screen__intro"><small>SOLARI AGENT ARENA</small><h1 id="start-title">Choose a run.<br/>Send your agent.</h1><p>Pick what it can see. One click starts the session and copies its mission.</p><div class="track-picker" aria-label="Observation track"><span>02 / AGENT SEES</span><div><button class="track-choice track-choice--active" data-remote-track="state-v1" aria-pressed="true"><b>STATE</b><small>Exact telemetry</small></button><button class="track-choice" data-remote-track="vision-v1" aria-pressed="false"><b>VISION</b><small>Arena image only</small></button></div></div></div>
+          <div class="course-heading"><span>01 / CHOOSE COURSE</span><small>Selected route is highlighted</small></div>
           <div id="course-list" class="course-list"></div>
           <div class="selected-course"><span>SELECTED</span><strong id="selected-course-name">${this.activeCourse.title}</strong><p id="selected-course-summary">${this.activeCourse.summary}</p><small id="selected-course-meta"></small></div>
-          <div class="start-screen__actions"><button id="start-connect" class="start-secondary">1 · CONNECT AGENT</button><button id="start-copy" class="start-primary" disabled>2 · COPY MISSION <span>↗</span></button></div>
-          <p id="remote-connect-status" class="remote-connect-status" aria-live="polite">No clone or personal Solari key required. Practice is recorded and non-authoritative.</p><p id="course-import-status" class="course-import-status"></p>
+          <div class="start-screen__actions"><button id="start-copy" class="start-primary" disabled>CHECKING PRACTICE…</button><button id="start-connect" class="start-connect-hidden" tabindex="-1" aria-hidden="true">CONNECT AGENT</button></div>
+          <p id="remote-connect-status" class="remote-connect-status" aria-live="polite">Checking hosted practice availability…</p>
+          <div class="connection-setup"><span>NEW AGENT? ADD THE TOOLS ONCE.</span><button data-copy-mcp-command data-copy-label="COPY MCP URL">COPY MCP URL</button></div><p id="course-import-status" class="course-import-status"></p>
           <textarea id="prompt-fallback" class="prompt-fallback" aria-label="Agent mission prompt"></textarea>
         </div>
       </section>

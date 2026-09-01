@@ -12,9 +12,10 @@ function validateInput(body) {
 }
 
 export default async function handler(request, response) {
-  if (request.method !== "POST") { response.setHeader("allow", "POST"); return sendJson(response, 405, { error: "Method not allowed." }); }
-  const rejected = validateRemoteRequestBoundary(request);
+  if (!["GET", "POST"].includes(request.method)) { response.setHeader("allow", "GET, POST"); return sendJson(response, 405, { error: "Method not allowed." }); }
+  const rejected = validateRemoteRequestBoundary(request, { requireJson: request.method === "POST" });
   if (rejected) return sendJson(response, rejected.status, { error: rejected.error });
+  if (request.method === "GET") return sendJson(response, 200, { enabled: remotePracticeEnabled() && Boolean(process.env.SOLARI_API_KEY) && Boolean(process.env.SOLARI_REMOTE_TICKET_SECRET) });
   if (!remotePracticeEnabled()) return sendJson(response, 503, { error: "Hosted Agent Practice is paused on this deployment." });
   if (!process.env.SOLARI_API_KEY || !process.env.SOLARI_REMOTE_TICKET_SECRET) return sendJson(response, 503, { error: "Hosted Agent Practice is not configured." });
   let input;
