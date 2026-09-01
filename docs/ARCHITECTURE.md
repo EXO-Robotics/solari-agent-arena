@@ -33,7 +33,12 @@ flowchart TB
   T --> API
   subgraph Server[Server-side authority]
     API[Admission + transcript validation]
+    R[(Redis atomic quotas<br/>active lease ledger)]
+    Q[QStash signed cleanup<br/>per-run + 5 min sweep]
     F[Canonical artifact finalization]
+    API --> R
+    API --> Q
+    Q --> API
   end
   API --> SS
   subgraph SS[Fresh Solari Sandbox]
@@ -81,7 +86,9 @@ For the primary HTTPS path, Safari passes the allow-listed `courseId`, seed, and
 |---|---|---|
 | Browser Worker | UI responsiveness and termination of a slow controller step | Origin isolation, compile timeout, authority, deterministic scheduling |
 | WebMCP / window API / accessible buttons | A narrow shared robot-control interface | Trustworthiness of the agent or browser state |
-| Hosted HTTP/MCP capability | Course/seed/track binding; hides Solari session ID/CDP endpoint; expires quickly; transport remains stateless | Strict single use, durable revocation, public rate limiting, or scoring authority |
+| Hosted admission lease | Atomic holder/IP/global daily and concurrency limits; one-time pairing; active revocation; raw IPs are HMAC-hashed | Human identity, Sybil-proofing, or scoring authority |
+| Hosted HTTP/MCP capability | Course/seed/track/lease binding; hides Solari session ID/CDP endpoint; expires quickly; transport remains stateless | Human identity or scoring authority |
+| Signed cleanup delivery | Requests unclaimed release at five minutes and hard release at twenty; an exact read-back-verified five-minute sweep refreshes a fail-closed heartbeat and retries due leases; retries are idempotent | Zero-delay guarantees during a provider-wide outage, proof of agent authorship, or scoring authority |
 | Agent transcript validation | Canonical sequence, bounded finite actions, course/seed/time/action limits | That the browser trial was honest or that a particular model produced it |
 | Vercel API | Server-only credential handling, admission, request bounds, artifact finalization | Untrusted-code isolation by itself |
 | Solari Sandbox | Fresh microVM outer boundary and SDK-controlled destruction | Publicly documented egress enforcement or remote attestation |
@@ -116,5 +123,5 @@ Creation, upload, unpack, runner, hash, or teardown failure returns no authorita
 - Sandbox commands have explicit SDK deadlines; the Sandbox idle timer is a cleanup backstop, not a controller deadline.
 - Teardown runs in `finally`; unconfirmed teardown fails closed and mints no evidence.
 - Public evaluation stays disabled by default and requires a separate admission token when enabled.
-- Hosted anonymous practice also stays disabled by default. The focused prototype has bounded encrypted capabilities and provider expiry, but intentionally does not claim durable one-time ticket redemption, distributed action locking, cleanup leases, or paid-abuse protection without a shared atomic store.
+- Hosted anonymous practice also stays disabled by default. When enabled, a fresh signed-sweep heartbeat is required before admission. Redis then admits and precharges a pending lease atomically before Solari creation; QStash accepts signed five- and twenty-minute cleanup deliveries before a ticket is returned, with an exact read-back-verified five-minute sweep as recovery. Failed releases are deferred with bounded backoff so they cannot indefinitely fill the front of a cleanup batch, while missing records are safely removed from their global/IP indexes. Explicit release and cleanup retain the active slot until provider deletion succeeds. An uncertain create outcome remains charged and capacity-bound for a conservative window. Daily owner reset advances only the usage epoch and never removes active leases.
 - `hostImpactAssessment: not-measured-per-run` prevents teardown metadata from being overstated as host forensics.

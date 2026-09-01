@@ -61,7 +61,11 @@ export async function executeRemoteHttpCommand(command) {
 export function remoteHttpError(error) {
   const message = sanitizeRemoteError(error);
   if (message === "Hosted Agent Practice is paused on this deployment." || message === "Hosted Agent Practice is not configured.") return { status: 503, error: message };
-  if (message === "Invalid Arena capability." || message === "Arena capability expired or is not active." || message === "Invalid Arena capability lifetime.") return { status: 401, error: message };
+  if ([
+    "Invalid Arena capability.", "Arena capability expired or is not active.", "Invalid Arena capability lifetime.",
+    "Arena pairing ticket was already redeemed or revoked.", "Arena session was released or expired.",
+  ].includes(message)) return { status: 401, error: message };
+  if (message === "Arena command already in progress.") return { status: 409, error: message };
   if (message.includes("expectedSequence") || message.includes("outside the course limits") || message.includes("durationMs")) return { status: 409, error: message };
   return { status: 502, error: message };
 }

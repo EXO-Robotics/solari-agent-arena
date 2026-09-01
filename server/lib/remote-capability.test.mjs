@@ -10,6 +10,7 @@ function pairing() {
   return createPairingClaims({
     course, courseHash: remoteCourseHash(course), seed: 42, track: "state-v1",
     session: { id: "session_private_123", cdpEndpoint: "wss://browser.getsolari.com/cdp/private", expiresAt: new Date((now + 3_600) * 1_000).toISOString() },
+    leaseId: "11111111-1111-4111-8111-111111111111",
     arenaUrl: "https://solari-agent-arena.vercel.app/?agent=1&course=practice-first-steps-v1",
   }, now);
 }
@@ -41,5 +42,6 @@ describe("remote Arena capabilities", () => {
     expect(opened.ticketJtiHash).toMatch(/^[a-f0-9]{64}$/);
     expect(opened.kind).toBe("session");
     expect(opened.exp - opened.iat).toBeLessThanOrEqual(20 * 60);
+    expect(opened.exp).toBe(Math.floor(Date.parse(opened.hardExpiresAt) / 1_000));
   });
 });

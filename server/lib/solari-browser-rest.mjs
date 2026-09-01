@@ -38,7 +38,12 @@ export async function createSolariBrowserSession() {
 
 export async function releaseSolariBrowserSession(sessionId) {
   const response = await request(`/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE", timeoutMs: 15_000 });
-  if (!response.ok && response.status !== 404) throw new Error("Solari Browser release was not accepted.");
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    let code;
+    try { code = JSON.parse(text)?.code; } catch { /* pre-code gateway response */ }
+    if (response.status !== 404 || code === "InvalidSessionId") throw new Error("Solari Browser release was not accepted.");
+  }
   return true;
 }
 

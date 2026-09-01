@@ -4,6 +4,11 @@ import { createPairingClaims, createSessionClaims, hashOpaque, openCapability, s
 import { getRemoteCourse, remoteCourseHash, REMOTE_TRACKS } from "./remote-courses.mjs";
 import { createSolariBrowserSession, downloadSolariBrowserReplay, releaseSolariBrowserSession } from "./solari-browser-rest.mjs";
 import { resolveArenaUrl } from "./arena-url.mjs";
+import {
+  abandonAdmissionLease, acquireCommandLock, bindOrphanAdmission, cancelPendingAdmission, closeAdmissionLease,
+  commitAdmission, markAdmissionCreating, redeemAdmission, releaseCommandLock, requireActiveAdmission,
+} from "./remote-admission.mjs";
+import { scheduleAdmissionExpiry } from "./remote-expiry-scheduler.mjs";
 
 const BROWSER_API_VERSION = "0.1.2";
 
@@ -36,6 +41,17 @@ async function withBrowser(claims, callback) {
     return await callback(page);
   } finally {
     await browser.disconnect();
+  }
+}
+
+async function withActiveCommand(claims, callback) {
+  await requireActiveAdmission(claims.leaseId, claims.solariSessionId);
+  const lock = await acquireCommandLock(claims.leaseId);
+  try {
+    await requireActiveAdmission(claims.leaseId, claims.solariSessionId);
+    return await callback();
+  } finally {
+    await releaseCommandLock(lock).catch(() => undefined);
   }
 }
 
@@ -82,6 +98,38 @@ export function formatPracticeObservation(claims, observation) {
   };
 }
 
+export async function settleFailedPracticeTicket(context, dependencies = {}) {
+  const cancelPending = dependencies.cancelPending ?? cancelPendingAdmission;
+  const releaseProvider = dependencies.releaseProvider ?? releaseSolariBrowserSession;
+  const closeLease = dependencies.closeLease ?? closeAdmissionLease;
+  const abandonLease = dependencies.abandonLease ?? abandonAdmissionLease;
+  const bindOrphan = dependencies.bindOrphan ?? bindOrphanAdmission;
+  const scheduleExpiry = dependencies.scheduleExpiry ?? scheduleAdmissionExpiry;
+  const { admission, creatingAdmission, session, claims, committed, arenaUrl } = context;
+  if (!creatingAdmission) {
+    await cancelPending(admission).catch(() => undefined);
+    return { retained: false, reason: "provider-not-started" };
+  }
+  if (!session) return { retained: true, reason: "provider-outcome-unknown" };
+  const released = await releaseProvider(session.id).then(() => true).catch(() => false);
+  if (released) {
+    if (committed) await closeLease(admission.leaseId, session.id).catch(() => undefined);
+    else await abandonLease(admission.leaseId, "provider-release-confirmed").catch(() => undefined);
+    return { retained: false, reason: "provider-release-confirmed" };
+  }
+  if (!committed && claims) {
+    const hardExpiresAt = Date.parse(claims.hardExpiresAt);
+    const bound = await bindOrphan(creatingAdmission, session.id, hardExpiresAt).catch(() => false);
+    if (bound) await scheduleExpiry({
+      leaseId: admission.leaseId,
+      pairingExpiresAt: Math.min(Date.now() + 5 * 60_000, hardExpiresAt),
+      hardExpiresAt,
+      arenaUrl,
+    }).catch(() => undefined);
+  }
+  return { retained: true, reason: "provider-release-unconfirmed" };
+}
+
 async function viewportPng(page) {
   await page.evaluate(() => document.querySelector(".simulation")?.classList.add("simulation--vision-capture"));
   try {
@@ -93,16 +141,29 @@ async function viewportPng(page) {
   }
 }
 
-export async function issuePracticeTicket({ courseId, seed, track }) {
+export async function issuePracticeTicket({ courseId, seed, track }, admission) {
   requireRemoteConfig();
+  if (!admission?.leaseId) throw new Error("Hosted Agent Practice admission is not configured.");
   const listing = getRemoteCourse(courseId);
   if (!Number.isInteger(seed) || seed < 0 || seed > 0xffff_ffff) throw new Error("seed must be a uint32 integer.");
   if (!REMOTE_TRACKS.includes(track)) throw new Error("track must be state-v1 or vision-v1.");
   const arenaUrl = resolveArenaUrl(undefined, process.env.ARENA_URL, courseId);
-  const session = await createSolariBrowserSession();
+  let session;
+  let claims;
+  let creatingAdmission;
+  let committed;
   let ready = false;
   try {
-    const claims = createPairingClaims({ course: listing.course, courseHash: remoteCourseHash(listing.course), seed, track, session, arenaUrl });
+    creatingAdmission = await markAdmissionCreating(admission);
+    session = await createSolariBrowserSession();
+    claims = createPairingClaims({ course: listing.course, courseHash: remoteCourseHash(listing.course), seed, track, session, arenaUrl, leaseId: admission.leaseId });
+    committed = await commitAdmission(creatingAdmission, session.id, { pairingExpiresAt: claims.exp * 1_000, hardExpiresAt: Date.parse(claims.hardExpiresAt) });
+    await scheduleAdmissionExpiry({
+      leaseId: admission.leaseId,
+      pairingExpiresAt: claims.exp * 1_000,
+      hardExpiresAt: Date.parse(claims.hardExpiresAt),
+      arenaUrl,
+    });
     const browser = await puppeteer.connect(connectOptions(session.cdpEndpoint));
     try {
       const pages = await browser.pages();
@@ -130,10 +191,10 @@ export async function issuePracticeTicket({ courseId, seed, track }) {
       track,
       pairingTicket: sealCapability(claims),
       expiresAt: new Date(claims.exp * 1_000).toISOString(),
-      replayPolicy: "Ticket redemption reattaches to one recorded Solari Browser. This short-lived prototype ticket is replayable until expiry.",
+      replayPolicy: "This ticket can be redeemed once. It reattaches to one recorded Solari Browser and expires after five minutes if unclaimed.",
     };
   } finally {
-    if (!ready) await releaseSolariBrowserSession(session.id).catch(() => undefined);
+    if (!ready) await settleFailedPracticeTicket({ admission, creatingAdmission, session, claims, committed, arenaUrl });
   }
 }
 
@@ -142,25 +203,34 @@ export async function connectPractice(pairingTicket) {
   const pairing = openCapability(pairingTicket, "pairing");
   const listing = getRemoteCourse(pairing.courseId);
   if (remoteCourseHash(listing.course) !== pairing.courseHash) throw new Error("Arena course binding failed.");
-  const loaded = await withBrowser(pairing, readLoadedState);
-  verifyLoadedState(pairing, loaded);
-  const sessionClaims = createSessionClaims(pairing);
-  return {
-    arenaSession: sealCapability(sessionClaims),
-    observation: formatPracticeObservation(sessionClaims, loaded.observation),
-    ...(sessionClaims.track === "vision-v1" ? { image: await withBrowser(sessionClaims, viewportPng) } : {}),
-  };
+  const lock = await acquireCommandLock(pairing.leaseId);
+  try {
+    const loaded = await withBrowser(pairing, readLoadedState);
+    verifyLoadedState(pairing, loaded);
+    const image = pairing.track === "vision-v1" ? await withBrowser(pairing, viewportPng) : undefined;
+    await redeemAdmission(pairing.leaseId, pairing.solariSessionId, hashOpaque(pairing.jti));
+    const sessionClaims = createSessionClaims(pairing);
+    return {
+      arenaSession: sealCapability(sessionClaims),
+      observation: formatPracticeObservation(sessionClaims, loaded.observation),
+      ...(image ? { image } : {}),
+    };
+  } finally {
+    await releaseCommandLock(lock).catch(() => undefined);
+  }
 }
 
 export async function observePractice(arenaSession) {
   requireRemoteConfig();
   const claims = openCapability(arenaSession, "session");
-  const loaded = await withBrowser(claims, readLoadedState);
-  verifyLoadedState(claims, loaded);
-  return {
-    observation: formatPracticeObservation(claims, loaded.observation),
-    ...(claims.track === "vision-v1" ? { image: await withBrowser(claims, viewportPng) } : {}),
-  };
+  return await withActiveCommand(claims, async () => {
+    const loaded = await withBrowser(claims, readLoadedState);
+    verifyLoadedState(claims, loaded);
+    return {
+      observation: formatPracticeObservation(claims, loaded.observation),
+      ...(claims.track === "vision-v1" ? { image: await withBrowser(claims, viewportPng) } : {}),
+    };
+  });
 }
 
 export async function actPractice(arenaSession, input) {
@@ -169,31 +239,35 @@ export async function actPractice(arenaSession, input) {
   if (!Number.isInteger(input.expectedSequence) || input.expectedSequence < 0 || input.expectedSequence >= claims.maxActions) throw new Error("expectedSequence is outside the action budget.");
   if (![input.drive, input.turn, input.durationMs].every(Number.isFinite) || Math.abs(input.drive) > claims.maxDrive || Math.abs(input.turn) > claims.maxTurn) throw new Error("Action values are outside the course limits.");
   if (!Number.isInteger(input.durationMs) || input.durationMs < 100 || input.durationMs > claims.maxActionDurationMs) throw new Error("durationMs is outside the course limits.");
-  const loaded = await withBrowser(claims, async (page) => page.evaluate(async (action) => {
-    const arena = window.solariAgentArena;
-    if (!arena) throw new Error("Arena tools are not ready.");
-    const observation = await arena.act(action);
-    return { manifest: arena.manifest(), observation, transcript: arena.transcript() };
-  }, input));
-  verifyLoadedState(claims, loaded);
-  return {
-    observation: formatPracticeObservation(claims, loaded.observation),
-    ...(claims.track === "vision-v1" ? { image: await withBrowser(claims, viewportPng) } : {}),
-  };
+  return await withActiveCommand(claims, async () => {
+    const loaded = await withBrowser(claims, async (page) => page.evaluate(async (action) => {
+      const arena = window.solariAgentArena;
+      if (!arena) throw new Error("Arena tools are not ready.");
+      const observation = await arena.act(action);
+      return { manifest: arena.manifest(), observation, transcript: arena.transcript() };
+    }, input));
+    verifyLoadedState(claims, loaded);
+    return {
+      observation: formatPracticeObservation(claims, loaded.observation),
+      ...(claims.track === "vision-v1" ? { image: await withBrowser(claims, viewportPng) } : {}),
+    };
+  });
 }
 
 export async function finishPractice(arenaSession) {
   requireRemoteConfig();
   const claims = openCapability(arenaSession, "session");
-  let loaded; let screenshot; let releaseAccepted = false;
-  try {
-    ({ loaded, screenshot } = await withBrowser(claims, async (page) => ({ loaded: await readLoadedState(page), screenshot: await viewportPng(page) })));
-    verifyLoadedState(claims, loaded);
-  } finally {
-    releaseAccepted = await releaseSolariBrowserSession(claims.solariSessionId).catch(() => false);
-  }
-  const replay = releaseAccepted ? await downloadSolariBrowserReplay(claims.solariSessionId).catch(() => null) : null;
-  const receipt = {
+  return await withActiveCommand(claims, async () => {
+    let loaded; let screenshot; let releaseAccepted = false;
+    try {
+      ({ loaded, screenshot } = await withBrowser(claims, async (page) => ({ loaded: await readLoadedState(page), screenshot: await viewportPng(page) })));
+      verifyLoadedState(claims, loaded);
+    } finally {
+      releaseAccepted = await releaseSolariBrowserSession(claims.solariSessionId).catch(() => false);
+      if (releaseAccepted) await closeAdmissionLease(claims.leaseId, claims.solariSessionId).catch(() => undefined);
+    }
+    const replay = releaseAccepted ? await downloadSolariBrowserReplay(claims.solariSessionId).catch(() => null) : null;
+    const receipt = {
     schemaVersion: "solari.arena.remote-practice-run.v1",
     runId: `practice_${hashOpaque(`${claims.jti}:${Date.now()}`).slice(0, 24)}`,
     authoritative: false,
@@ -211,15 +285,20 @@ export async function finishPractice(arenaSession) {
     replayHash: replay ? sha256(replay) : null,
     releaseAccepted,
     completedAt: new Date().toISOString(),
-  };
-  receipt.resultHash = sha256(receipt);
-  return { receipt, image: screenshot };
+    };
+    receipt.resultHash = sha256(receipt);
+    return { receipt, image: screenshot };
+  });
 }
 
 export async function disconnectPractice(arenaSession) {
   requireRemoteConfig();
   const claims = openCapability(arenaSession, "session");
-  return { disconnected: true, releaseAccepted: await releaseSolariBrowserSession(claims.solariSessionId), authoritative: false };
+  return await withActiveCommand(claims, async () => {
+    const releaseAccepted = await releaseSolariBrowserSession(claims.solariSessionId);
+    if (releaseAccepted) await closeAdmissionLease(claims.leaseId, claims.solariSessionId);
+    return { disconnected: true, releaseAccepted, authoritative: false };
+  });
 }
 
 export function sanitizeRemoteError(error) {
@@ -227,6 +306,8 @@ export function sanitizeRemoteError(error) {
     "Hosted Agent Practice is paused on this deployment.", "Hosted Agent Practice is not configured.", "Invalid Arena capability.",
     "Arena capability expired or is not active.", "Invalid Arena capability lifetime.", "Unknown built-in course.",
     "Arena course binding failed.", "Arena seed binding failed.", "Arena page is unavailable.", "Arena viewport is unavailable.",
+    "Hosted Agent Practice admission is not configured.", "Arena pairing ticket was already redeemed or revoked.", "Arena session was released or expired.",
+    "Arena command already in progress.",
     "expectedSequence is outside the action budget.", "Action values are outside the course limits.", "durationMs is outside the course limits.",
   ];
   const message = error instanceof Error ? error.message : String(error);

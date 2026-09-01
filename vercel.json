@@ -19,6 +19,10 @@
       "includeFiles": "{package-lock.json,server/lib/**,src/agent/course-registry.json}",
       "maxDuration": 120
     },
+    "api/arena-expire.mjs": {
+      "includeFiles": "{package-lock.json,server/lib/**}",
+      "maxDuration": 60
+    },
     "api/mcp.mjs": {
       "includeFiles": "{package-lock.json,server/lib/**,src/agent/course-registry.json}",
       "maxDuration": 120
@@ -29,6 +33,7 @@
     { "source": "/api/agent-evaluate", "destination": "/api/agent-evaluate.mjs" },
     { "source": "/api/arena-ticket", "destination": "/api/arena-ticket.mjs" },
     { "source": "/api/arena-command", "destination": "/api/arena-command.mjs" },
+    { "source": "/api/arena-expire", "destination": "/api/arena-expire.mjs" },
     { "source": "/mcp", "destination": "/api/mcp.mjs" }
   ]
 }

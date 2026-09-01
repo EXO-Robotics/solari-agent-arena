@@ -117,7 +117,7 @@ Fresh Grok session `01a05d93-c5b2-7bb3-b86b-e555f4e7f3d2` inspected the revised 
 - Solari materially improves Robot-3D-Sim: yes.
 - No material finding remains under the stated default-disabled scope.
 
-Remaining deferred public-production controls are documented product limits, not hidden claims: pairing replay protection, durable distributed action/session locks, cleanup leases, and paid-abuse rate/concurrency control. `SOLARI_REMOTE_ENABLED=false` is the release gate until those exist.
+The public-production admission controls are now implemented behind the still-closed release gate: atomic Redis holder/IP/global daily and concurrency limits, a one-time pairing transition, durable active leases, signed five-minute unclaimed cleanup, signed twenty-minute deadline cleanup, an exact read-back-verified five-minute recovery sweep with a fail-closed heartbeat, idempotent provider release, charged retention for uncertain provider outcomes, poison-record backoff/pruning, and an owner-only usage-epoch reset with a latest-reset record. `SOLARI_REMOTE_ENABLED=false` remains the release gate until the Marketplace resources are attached, the managed challenge is rolled out, and the live admission/release qualification passes.
 
 ## Zero-install HTTPS live walkthrough
 

@@ -45,7 +45,10 @@ There is no Solari Desktop integration. This evaluator is headless and the exist
 ```mermaid
 flowchart LR
   UI[Course + track picker] -->|POST /api/arena-ticket| API[Vercel Node API<br/>credentials server-side]
+  API -->|atomic reserve| R[(Upstash Redis<br/>daily + active leases)]
   API -->|create + record| SB[Solari Browser]
+  API -->|signed delayed cleanup| Q[Upstash QStash]
+  Q -->|5 min unclaimed<br/>20 min deadline + 5 min sweep| API
   UI -->|self-contained system prompt<br/>short-lived opaque ticket| A[Codex / local model / agent]
   A -->|POST /api/arena-command<br/>5 strict operations| API
   API -->|CDP reconnect per call| SB
@@ -65,6 +68,8 @@ flowchart LR
   AR --> RP[Browser integrity check + recorded replay]
   VR[Solari Browser release verifier] -->|DOM + hashes + replay completion| RP
 ```
+
+The paid-session mint is fail-closed: a recently delivered signed recovery sweep must be recorded, Redis atomically reserves daily and active capacity before the Solari request, and browser initialization plus both cleanup deliveries must be accepted before the prompt receives a ticket. A failure before provider creation unwinds the pending reservation. Once a provider request starts, its daily counter remains charged; capacity is cleared only after deletion is confirmed or a conservative two-hour uncertain-provider window has elapsed. This prevents a lost create response from becoming an unmetered mint loop.
 
 Vercel does not hold Arena state in an API object or module global. Each HTTP or MCP call carries an encrypted, short-lived `arenaSession`; the provider session ID and raw CDP endpoint remain inside that ciphertext and are never returned separately. The transport is stateless and reconnects with Puppeteer, then disconnects without closing the Browser. The trust claim remains narrow: **the external model and remote browser trial are outside the authoritative boundary**.
 
@@ -96,7 +101,9 @@ Add `https://solari-agent-arena.vercel.app/mcp` to an MCP-capable host. The serv
 | `arena_finish(arenaSession)` | Release Browser and return transcript plus `solari.arena.remote-practice-run.v1`. |
 | `arena_disconnect(arenaSession)` | Release without issuing a practice result. |
 
-The same encrypted capability and Browser runtime back HTTPS and MCP. The pairing token is replayable until its five-minute expiry in this focused prototype; it reattaches to the same Browser rather than creating another. The session capability lasts at most twenty minutes or the shorter Solari provider deadline. Abandoned sessions are bounded by the provider deadline. Strict one-time redemption, durable active-session leases, and paid-abuse protection require a shared atomic store or platform rate limiter; `SOLARI_REMOTE_ENABLED` therefore remains an explicit release gate rather than a hidden “single use” claim.
+The same encrypted capability and Browser runtime back HTTPS and MCP. A Redis-backed lease makes the pairing token one-time, admits one active session per anonymous holder, and caps holder/IP/global daily usage plus global concurrency atomically before Solari Browser creation. The session capability cannot extend beyond twenty minutes from browser creation or the shorter provider deadline. Signed QStash deliveries request release after five minutes when unclaimed and at the twenty-minute deadline; a separately configured five-minute signed sweep retries due leases if an individual delivery was not accepted. Explicit finish/disconnect releases earlier. Provider deletion must succeed before the normal active lease is cleared.
+
+The public cookie is a signed, `HttpOnly`, `Secure`, `SameSite=Lax` anonymous identifier—not an identity claim. IP subjects are HMAC-hashed before storage, and no raw IP, CDP endpoint, Solari key, or cleanup credential is written to Redis. Clearing cookies cannot escape the IP and global ceilings. The Vercel firewall remains defense-in-depth; the atomic application budget is the cost boundary.
 
 Remote practice can never call the authoritative evaluator or emit `solari.arena.agent-run.v1`. Its receipt says `authoritative:false`, hashes the transcript/screenshot/recording when obtained, hashes rather than reveals the Solari session ID, and records only that release was accepted.
 
@@ -198,6 +205,20 @@ SOLARI_EVALUATION_ENABLED=false
 SOLARI_REMOTE_ENABLED=false
 SOLARI_REMOTE_TICKET_SECRET=random-server-only-secret-at-least-32-characters
 SOLARI_REMOTE_ALLOWED_HOSTS=solari-agent-arena.vercel.app,localhost,127.0.0.1
+UPSTASH_REDIS_REST_URL=https://...
+UPSTASH_REDIS_REST_TOKEN=server-only
+# Vercel Marketplace may inject these equivalent aliases instead:
+# KV_REST_API_URL=https://...
+# KV_REST_API_TOKEN=server-only
+QSTASH_TOKEN=server-only
+QSTASH_CURRENT_SIGNING_KEY=server-only
+QSTASH_NEXT_SIGNING_KEY=server-only
+SOLARI_REMOTE_REDIS_SCOPE=production
+SOLARI_REMOTE_MAX_CONCURRENT=2
+SOLARI_REMOTE_MAX_IP_CONCURRENT=1
+SOLARI_REMOTE_DAILY_LIMIT=20
+SOLARI_REMOTE_HOLDER_DAILY_LIMIT=2
+SOLARI_REMOTE_IP_DAILY_LIMIT=2
 ```
 
 Never prefix the Solari key with `VITE_`. Vite alone serves the browser trials; use `vercel dev` for `/api/evaluate` and `/api/agent-evaluate`.
@@ -211,7 +232,12 @@ npm run setup:codex
 npm run agent:mcp
 npm run verify:mcp-bridge
 npm run verify:agent-benchmark
+npm run remote:usage
+npm run remote:setup-sweeper
+npm run remote:reset-usage -- --scope production --confirm RESET_DAILY_USAGE
 ```
+
+The reset command requires the exact Redis scope, advances a server-side quota epoch, and records the previous/current epoch plus reset time. It resets the current daily counters without deleting active leases, releasing browsers, or exposing an admin endpoint in the public UI. Run it only with production Upstash credentials loaded into a trusted local `.env.local`. Vercel intentionally redacts Marketplace values marked Sensitive when pulling environments, so obtain the Redis REST URL/token directly from the owner-only Vercel or Upstash secret view when you first configure this command; never weaken the Production variables from Secret to Config merely to make them pullable.
 
 ## Deployment
 
@@ -228,9 +254,11 @@ npx vercel env add SOLARI_REMOTE_ALLOWED_HOSTS production
 npx vercel deploy --prod
 ```
 
-Keep both `SOLARI_EVALUATION_ENABLED=false` and `SOLARI_REMOTE_ENABLED=false` on unattended public deployments unless their separate admission requirements are satisfied. Checked-in authoritative replays stay public. Paid live evaluation requires the admission token; anonymous hosted practice additionally requires durable rate/concurrency limits and cleanup leases. Neither gate is a Solari credential.
+Install Upstash Redis and QStash through the Vercel Marketplace so their server-only variables are injected into the project. Redis credentials may arrive as `UPSTASH_REDIS_REST_*` or Vercel's equivalent `KV_REST_API_*` aliases; the server accepts either pair. Then run `npm run remote:setup-sweeper` once with those credentials. That setup command creates the idempotently named schedule, reads its destination/body/cron/active state back from QStash, and records the initial Redis heartbeat. Each real signed sweep refreshes that heartbeat; ticket minting stops if it becomes more than ten minutes old. Keep both `SOLARI_EVALUATION_ENABLED=false` and `SOLARI_REMOTE_ENABLED=false` until the Redis atomic-admission test, per-session cleanup test, recurring-sweep test, managed-challenge rollout, and live release probe pass. Checked-in authoritative replays stay public. Paid isolated evaluation remains separately token-gated and disabled.
 
-The API deliberately makes no in-process “one run at a time” claim: Vercel instances do not share memory. Before enabling live evaluation for multiple reviewers, add an account-level Solari quota and a durable distributed rate/lease control. The checked-in public deployment remains disabled.
+Conservative public defaults are two concurrent sessions globally, one per holder and IP, two sessions per holder/IP per UTC day, and twenty sessions globally per UTC day. All are server-side environment variables. Redis failure, stale sweep heartbeat, QStash scheduling failure, cleanup failure, or configuration drift prevents a public ticket. Failed cleanup is moved behind later due leases with bounded backoff; stale global/IP indexes are pruned using a separate lease-to-IP mapping. A provider-create outcome that cannot be confirmed retains its charged capacity rather than pretending no work exists. `SOLARI_REMOTE_ENABLED` remains the emergency kill switch.
+
+The current QStash Free allowance shown by the Vercel Marketplace is 500 messages per day. The five-minute recovery sweep consumes 288 scheduled deliveries per day; at the twenty-session global cap, the two expiry deliveries per admitted session add at most 40, leaving 172 deliveries for the setup probe and ordinary retries. Monitor QStash usage before raising the Arena daily limit. The shared Free Redis database is separated with the `SOLARI_REMOTE_REDIS_SCOPE` key namespace, but it is still an operational dependency shared with another project; a dedicated database is the cleaner future boundary if a suitable free slot or paid plan becomes available.
 
 ## Relationship to Robot-3D-Sim
 

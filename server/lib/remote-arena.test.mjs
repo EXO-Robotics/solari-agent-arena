@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatPracticeObservation, sanitizeRemoteError } from "./remote-arena.mjs";
+import { formatPracticeObservation, sanitizeRemoteError, settleFailedPracticeTicket } from "./remote-arena.mjs";
 import { readFileSync } from "node:fs";
 
 const claims = {
@@ -28,5 +28,38 @@ describe("remote practice disclosure boundary", () => {
 
   it("does not reflect infrastructure errors or secrets", () => {
     expect(sanitizeRemoteError(new Error("wss://secret.getsolari.com/cdp/sid-123"))).toBe("Arena request failed safely. No authoritative result was created.");
+  });
+
+  it("retains quota and binds cleanup when provider deletion is not confirmed", async () => {
+    const calls = [];
+    const context = {
+      admission: { leaseId: "11111111-1111-4111-8111-111111111111" },
+      creatingAdmission: { leaseId: "11111111-1111-4111-8111-111111111111" },
+      session: { id: "provider-session-123" }, committed: undefined,
+      claims: { hardExpiresAt: new Date(Date.now() + 1_200_000).toISOString() }, arenaUrl: "https://arena.example",
+    };
+    const result = await settleFailedPracticeTicket(context, {
+      cancelPending: async () => { calls.push("cancel"); },
+      releaseProvider: async () => { calls.push("release-failed"); throw new Error("unconfirmed"); },
+      abandonLease: async () => { calls.push("abandon"); },
+      bindOrphan: async () => { calls.push("bind-orphan"); return true; },
+      scheduleExpiry: async () => { calls.push("schedule-expiry"); },
+    });
+    expect(result).toEqual({ retained: true, reason: "provider-release-unconfirmed" });
+    expect(calls).toEqual(["release-failed", "bind-orphan", "schedule-expiry"]);
+  });
+
+  it("frees active capacity only after provider deletion is confirmed", async () => {
+    const calls = [];
+    const result = await settleFailedPracticeTicket({
+      admission: { leaseId: "11111111-1111-4111-8111-111111111111" },
+      creatingAdmission: { leaseId: "11111111-1111-4111-8111-111111111111" },
+      session: { id: "provider-session-123" }, committed: undefined,
+    }, {
+      releaseProvider: async () => { calls.push("release"); return true; },
+      abandonLease: async () => { calls.push("abandon"); },
+    });
+    expect(result.retained).toBe(false);
+    expect(calls).toEqual(["release", "abandon"]);
   });
 });

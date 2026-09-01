@@ -11,7 +11,7 @@ const SESSION_TTL_SECONDS = 20 * 60;
 const COMMON_FIELDS = [
   "v", "kind", "iss", "aud", "jti", "iat", "exp", "authorityClass", "courseId", "courseHash", "seed", "track",
   "maxActions", "maxSeconds", "maxActionDurationMs", "maxDrive", "maxTurn", "solariSessionId", "cdpEndpoint",
-  "providerExpiresAt", "arenaUrl",
+  "providerExpiresAt", "hardExpiresAt", "leaseId", "arenaUrl",
 ];
 const PAIRING_FIELDS = new Set(COMMON_FIELDS);
 const SESSION_FIELDS = new Set([...COMMON_FIELDS, "ticketJtiHash"]);
@@ -48,6 +48,8 @@ function validateClaims(value, expectedKind, nowSeconds = Math.floor(Date.now() 
   if (!Number.isInteger(value.maxActions) || !Number.isFinite(value.maxSeconds) || !Number.isInteger(value.maxActionDurationMs)) throw new Error("Invalid Arena capability.");
   if (!["state-v1", "vision-v1"].includes(value.track)) throw new Error("Invalid Arena capability.");
   if (typeof value.solariSessionId !== "string" || value.solariSessionId.length < 8 || typeof value.cdpEndpoint !== "string") throw new Error("Invalid Arena capability.");
+  if (!/^[0-9a-f-]{36}$/i.test(value.leaseId) || !Number.isFinite(Date.parse(value.hardExpiresAt))) throw new Error("Invalid Arena capability.");
+  if (value.exp > Math.floor(Date.parse(value.hardExpiresAt) / 1_000)) throw new Error("Invalid Arena capability lifetime.");
   if (expectedKind === "session" && !/^[a-f0-9]{64}$/.test(value.ticketJtiHash)) throw new Error("Invalid Arena capability.");
   return Object.freeze(value);
 }
@@ -76,22 +78,24 @@ export function openCapability(token, expectedKind, secret, nowSeconds) {
   }
 }
 
-export function createPairingClaims({ course, courseHash, seed, track, session, arenaUrl }, nowSeconds = Math.floor(Date.now() / 1_000)) {
+export function createPairingClaims({ course, courseHash, seed, track, session, arenaUrl, leaseId }, nowSeconds = Math.floor(Date.now() / 1_000)) {
   const providerExpiry = Math.floor(Date.parse(session.expiresAt) / 1_000);
   const sessionExpiry = Math.min(providerExpiry, nowSeconds + SESSION_TTL_SECONDS);
+  const hardExpiresAt = new Date(sessionExpiry * 1_000).toISOString();
   return {
     v: 1, kind: "pairing", iss: ISSUER, aud: AUDIENCE, jti: randomUUID(), iat: nowSeconds,
     exp: Math.min(sessionExpiry, nowSeconds + PAIRING_TTL_SECONDS), authorityClass: AUTHORITY,
     courseId: course.courseId, courseHash, seed, track,
     maxActions: course.maxActions, maxSeconds: course.maxSeconds, maxActionDurationMs: course.maxActionDurationMs,
     maxDrive: course.maxDrive, maxTurn: course.maxTurn,
-    solariSessionId: session.id, cdpEndpoint: session.cdpEndpoint, providerExpiresAt: session.expiresAt, arenaUrl,
+    solariSessionId: session.id, cdpEndpoint: session.cdpEndpoint, providerExpiresAt: session.expiresAt, hardExpiresAt, leaseId, arenaUrl,
   };
 }
 
 export function createSessionClaims(pairing, nowSeconds = Math.floor(Date.now() / 1_000)) {
   const providerExpiry = Math.floor(Date.parse(pairing.providerExpiresAt) / 1_000);
-  const claims = { ...pairing, kind: "session", jti: randomUUID(), iat: nowSeconds, exp: Math.min(providerExpiry, nowSeconds + SESSION_TTL_SECONDS), ticketJtiHash: hashOpaque(pairing.jti) };
+  const hardExpiry = Math.floor(Date.parse(pairing.hardExpiresAt) / 1_000);
+  const claims = { ...pairing, kind: "session", jti: randomUUID(), iat: nowSeconds, exp: Math.min(providerExpiry, hardExpiry, nowSeconds + SESSION_TTL_SECONDS), ticketJtiHash: hashOpaque(pairing.jti) };
   return claims;
 }
 
