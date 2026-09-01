@@ -12,6 +12,7 @@ import { HORIZON, OBSTACLE_ORANGE, STATUS_CYAN, STATUS_VIOLET, createCollisionMa
 import { applyMuJoCoPose, createGeomGeometry } from "./mujocoMath";
 import { loadVisualModel, type VisualLinks } from "./visualBinding";
 import { disposeObjectTree } from "./disposeObjectTree";
+import { boundedRenderSize } from "./renderSize";
 
 export type CameraMode = "broadcast" | "follow" | "overhead";
 
@@ -58,7 +59,7 @@ export class RobotScene {
     visualLinks: VisualLinks,
   ) {
     this.visualLinks = visualLinks;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: "high-performance" });
     // One physical pixel per CSS pixel keeps Safari's post-processing targets bounded.
     // Bloom still supplies the neon finish without allocating Retina-sized framebuffers.
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
@@ -433,10 +434,11 @@ export class RobotScene {
   private resize(): void {
     const width = Math.max(1, this.container.clientWidth);
     const height = Math.max(1, this.container.clientHeight);
+    const renderSize = boundedRenderSize(width, height);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(width, height, false);
-    this.composer.setSize(width, height);
+    this.renderer.setSize(renderSize.width, renderSize.height, false);
+    this.composer.setSize(renderSize.width, renderSize.height);
   }
 }
 

@@ -43,6 +43,7 @@ export class App {
   private evaluationState: "empty" | "pending" | "integrityChecked" | "failed" = "empty";
   private authoritativeRun: AuthoritativeRun | null = null;
   private replayIndex = 0;
+  private lastRenderedReplayIndex = -1;
   private replayPlaying = false;
   private replayElapsed = 0;
   private readonly agentTrial = new AgentTrial();
@@ -114,7 +115,10 @@ export class App {
         if (sample) {
           engine.restoreState(sample.qpos, sample.qvel);
           scene.update(sample.frame);
-          this.renderReplayFrame(sample.frame);
+          if (this.replayPlaying || this.replayIndex !== this.lastRenderedReplayIndex) {
+            this.renderReplayFrame(sample.frame);
+            this.lastRenderedReplayIndex = this.replayIndex;
+          }
           this.lastSceneRender = now;
         }
       }
@@ -127,15 +131,16 @@ export class App {
     if (active) this.accumulator = Math.min(0.05, this.accumulator + wallDt * this.simulationSpeed);
 
     let steps = 0;
+    let latestFrame: SensorFrame | null = null;
     while (active && this.accumulator >= engine.timestep && steps < 25) {
-      const frame = engine.sensors();
       this.controlAccumulator += engine.timestep;
       this.telemetryAccumulator += engine.timestep;
       if (this.controlAccumulator >= CONTROL_DT) {
+        const controlFrame = engine.sensors();
         if (this.mode === "agent") {
-          engine.applyTargets(agentGaitTargets(frame));
+          engine.applyTargets(agentGaitTargets(controlFrame));
         } else {
-          this.controller.step(this.copyFrame(frame), CONTROL_DT);
+          this.controller.step(this.copyFrame(controlFrame), CONTROL_DT);
           engine.applyTargets(this.controller.targets);
         }
         const command = this.fieldCommand();
@@ -144,16 +149,18 @@ export class App {
       }
       engine.step();
       const updated = engine.sensors();
+      latestFrame = updated;
+      const fallen = engine.isFallen(updated);
       if (this.session.phase === "running") {
         this.session.update(updated);
-        if (engine.fallen) this.session.fall(updated, engine.energy);
+        if (fallen) this.session.fall(updated, engine.energy);
       }
       if (this.telemetryAccumulator >= TELEMETRY_DT) {
         this.captureTelemetry(updated);
         this.telemetryAccumulator %= TELEMETRY_DT;
       }
       if (this.mode === "agent") {
-        this.agentTrial.update(updated, engine.worldCollision, engine.fallen);
+        this.agentTrial.update(updated, engine.worldCollision, fallen);
         this.advanceAgentCommand(engine.timestep, updated);
         if (this.agentCommand === null) {
           this.accumulator = 0;
@@ -164,16 +171,20 @@ export class App {
       steps += 1;
     }
 
-    const frame = engine.sensors();
-    if (active || now - this.lastSceneRender >= IDLE_RENDER_INTERVAL_MS) {
-      scene.update(frame);
-      this.lastSceneRender = now;
-    }
-    if (now - this.lastUiUpdate > (active ? ACTIVE_UI_INTERVAL_MS : IDLE_UI_INTERVAL_MS)) {
-      this.renderTelemetry(frame);
-      this.renderRunState();
-      if (this.mode === "agent") this.renderAgentPanel(frame);
-      this.lastUiUpdate = now;
+    const sceneDue = active || now - this.lastSceneRender >= IDLE_RENDER_INTERVAL_MS;
+    const uiDue = now - this.lastUiUpdate > (active ? ACTIVE_UI_INTERVAL_MS : IDLE_UI_INTERVAL_MS);
+    if (sceneDue || uiDue) {
+      const frame = latestFrame ?? engine.sensors();
+      if (sceneDue) {
+        scene.update(frame);
+        this.lastSceneRender = now;
+      }
+      if (uiDue) {
+        this.renderTelemetry(frame);
+        this.renderRunState();
+        if (this.mode === "agent" && active) this.renderAgentPanel(frame);
+        this.lastUiUpdate = now;
+      }
     }
     this.animationId = requestAnimationFrame((time) => this.animate(time));
   }
@@ -430,8 +441,10 @@ export class App {
     this.requireElement("#metric-heading").textContent = `${heading.toFixed(0)}°`;
     const drive = this.engine.telemetryDrive();
     this.requireElement("#drive-fill").setAttribute("style", `--drive:${(drive * 100).toFixed(1)}%`);
-    this.requireElement("#speed-line").setAttribute("points", this.telemetry.points("speed", 360, 74));
-    this.requireElement("#pitch-line").setAttribute("points", this.telemetry.points("pitch", 360, 74));
+    if (this.mode !== "agent") {
+      this.requireElement("#speed-line").setAttribute("points", this.telemetry.points("speed", 360, 74));
+      this.requireElement("#pitch-line").setAttribute("points", this.telemetry.points("pitch", 360, 74));
+    }
   }
 
   private renderRunState(): void {
@@ -580,6 +593,7 @@ export class App {
 
   private clearEvidence(): void {
     this.authoritativeRun = null;
+    this.lastRenderedReplayIndex = -1;
     for (const element of this.root.querySelectorAll<HTMLElement>("#evidence-panel dd, #evidence-panel code")) element.textContent = "—";
     const replay = this.requireElement("#replay-state");
     replay.dataset.state = "empty";
@@ -678,7 +692,10 @@ export class App {
   private toggleReplay(): void {
     const samples = this.authoritativeRun?.telemetry.samples;
     if (!samples?.length) return;
-    if (this.replayIndex >= samples.length - 1) this.replayIndex = 0;
+    if (this.replayIndex >= samples.length - 1) {
+      this.replayIndex = 0;
+      this.lastRenderedReplayIndex = -1;
+    }
     this.replayPlaying = !this.replayPlaying;
     this.setReplayState(this.replayPlaying ? "playing" : "paused");
   }

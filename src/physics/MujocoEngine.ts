@@ -234,7 +234,10 @@ export class MujocoEngine {
   }
 
   get fallen(): boolean {
-    const frame = this.sensors();
+    return this.isFallen(this.sensors());
+  }
+
+  isFallen(frame: SensorFrame): boolean {
     return frame.height < 0.5 || Math.abs(frame.imu.pitch) > 0.96 || Math.abs(frame.imu.roll) > 0.96;
   }
 
