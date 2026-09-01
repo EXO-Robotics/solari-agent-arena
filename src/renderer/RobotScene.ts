@@ -1,11 +1,14 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { VISUAL_LINK_NAMES, visualModelUrl, type VisualLinkName } from "../model/visualContract";
 import type { MujocoEngine } from "../physics/MujocoEngine";
 import type { SensorFrame } from "../sim/types";
 import type { CourseCheckpoint } from "../agent/contract";
-import { HORIZON, STATUS_CYAN, createCollisionMaterial, fieldKindForGeom, fieldMaterial } from "./materials";
+import { HORIZON, OBSTACLE_ORANGE, STATUS_CYAN, STATUS_VIOLET, createCollisionMaterial, fieldKindForGeom, fieldMaterial } from "./materials";
 import { applyMuJoCoPose, createGeomGeometry } from "./mujocoMath";
 import { loadVisualModel, type VisualLinks } from "./visualBinding";
 
@@ -17,6 +20,8 @@ export class RobotScene {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(38, 1, 0.05, 140);
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly composer: EffectComposer;
+  private readonly bloomPass: UnrealBloomPass;
   private readonly controls: OrbitControls;
   private readonly keyLight: THREE.DirectionalLight;
   private readonly collisionMeshes: Array<THREE.Mesh | null> = [];
@@ -29,10 +34,13 @@ export class RobotScene {
   private readonly statusLight: THREE.PointLight;
   private readonly agentCourseGroup = new THREE.Group();
   private readonly agentCheckpointMarkers: THREE.Mesh[] = [];
+  private readonly obstacleMaterials: THREE.MeshStandardMaterial[] = [];
+  private readonly beaconMaterials: THREE.MeshStandardMaterial[] = [];
   private readonly resizeObserver: ResizeObserver;
   private readonly pmrem: THREE.PMREMGenerator;
   private cameraMode: CameraMode = "follow";
   private debug = false;
+  private activeCheckpoint = 0;
 
   static async create(container: HTMLElement, engine: MujocoEngine): Promise<RobotScene> {
     const visual = await loadVisualModel(visualModelUrl());
@@ -52,7 +60,7 @@ export class RobotScene {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 0.68;
     container.append(this.renderer.domElement);
 
     this.camera.up.set(0, 0, 1);
@@ -64,15 +72,15 @@ export class RobotScene {
     this.controls.enabled = false;
 
     this.scene.background = new THREE.Color(HORIZON);
-    this.scene.fog = new THREE.Fog(HORIZON, 35, 95);
+    this.scene.fog = new THREE.FogExp2(HORIZON, 0.018);
 
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
     const environment = new RoomEnvironment();
     this.scene.environment = this.pmrem.fromScene(environment, 0.04).texture;
     environment.dispose();
 
-    this.scene.add(new THREE.HemisphereLight(0xd7dde2, 0x3e433f, 0.45));
-    this.keyLight = new THREE.DirectionalLight(0xfff1de, 1.55);
+    this.scene.add(new THREE.HemisphereLight(0xd9e7f0, 0x05080b, 0.44));
+    this.keyLight = new THREE.DirectionalLight(0xf4f9ff, 1.35);
     this.keyLight.castShadow = true;
     this.keyLight.shadow.mapSize.set(2048, 2048);
     this.keyLight.shadow.bias = -0.0003;
@@ -86,9 +94,17 @@ export class RobotScene {
     this.keyLight.shadow.camera.bottom = -SHADOW_EXTENT;
     this.scene.add(this.keyLight);
     this.scene.add(this.keyLight.target);
-    const fill = new THREE.DirectionalLight(0xa8b8c8, 0.32);
+    const fill = new THREE.DirectionalLight(0x55ffe0, 0.46);
     fill.position.set(8, 6, 6);
     this.scene.add(fill);
+    const violetRim = new THREE.DirectionalLight(STATUS_VIOLET, 0.5);
+    violetRim.position.set(-8, 5, 4);
+    this.scene.add(violetRim);
+
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.42, 0.36, 0.92);
+    this.composer.addPass(this.bloomPass);
 
     this.resolveBodyIndices();
     this.buildArena();
@@ -140,8 +156,9 @@ export class RobotScene {
     this.updateShadowRig(frame);
     this.updateDebug(frame);
     this.updateCamera(frame);
+    this.updateNeonArena(frame.time);
     this.controls.update();
-    this.renderer.render(this.scene, this.camera);
+    this.composer.render();
   }
 
   setCameraMode(mode: CameraMode): void {
@@ -162,37 +179,51 @@ export class RobotScene {
   configureAgentCourse(checkpoints: CourseCheckpoint[]): void {
     this.agentCourseGroup.clear();
     this.agentCheckpointMarkers.length = 0;
-    const path = [new THREE.Vector3(0, 0, 0.025), ...checkpoints.map((point) => new THREE.Vector3(point.x, point.y, 0.025))];
+    const path = [new THREE.Vector3(0, 0, 0.035), ...checkpoints.map((point) => new THREE.Vector3(point.x, point.y, 0.035))];
+    const pathHalo = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(path),
+      new THREE.LineBasicMaterial({ color: STATUS_VIOLET, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false }),
+    );
     const line = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(path),
-      new THREE.LineDashedMaterial({ color: STATUS_CYAN, transparent: true, opacity: 0.42, dashSize: 0.35, gapSize: 0.24 }),
+      new THREE.LineDashedMaterial({ color: STATUS_CYAN, transparent: true, opacity: 0.86, dashSize: 0.42, gapSize: 0.18, blending: THREE.AdditiveBlending, depthWrite: false }),
     );
     line.computeLineDistances();
-    this.agentCourseGroup.add(line);
-    checkpoints.forEach((checkpoint) => {
+    this.agentCourseGroup.add(pathHalo, line);
+    checkpoints.forEach((checkpoint, index) => {
+      const color = index % 2 === 0 ? STATUS_CYAN : STATUS_VIOLET;
+      const halo = new THREE.Mesh(
+        new THREE.RingGeometry(checkpoint.radius + 0.02, checkpoint.radius + 0.12, 64),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.18, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }),
+      );
+      halo.position.set(checkpoint.x, checkpoint.y, 0.032);
       const marker = new THREE.Mesh(
-        new THREE.RingGeometry(Math.max(0.18, checkpoint.radius - 0.08), checkpoint.radius, 48),
-        new THREE.MeshBasicMaterial({ color: 0x697169, transparent: true, opacity: 0.68, side: THREE.DoubleSide }),
+        new THREE.RingGeometry(Math.max(0.18, checkpoint.radius - 0.075), checkpoint.radius, 64),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.58, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }),
       );
       marker.position.set(checkpoint.x, checkpoint.y, 0.035);
       marker.userData.checkpointId = checkpoint.id;
+      marker.userData.neonColor = color;
       this.agentCheckpointMarkers.push(marker);
-      this.agentCourseGroup.add(marker);
+      this.agentCourseGroup.add(halo, marker);
     });
   }
 
   setAgentCourseProgress(active: boolean, reached: number): void {
     this.agentCourseGroup.visible = active;
+    this.activeCheckpoint = reached;
     this.agentCheckpointMarkers.forEach((marker, index) => {
       const material = marker.material as THREE.MeshBasicMaterial;
-      material.color.setHex(index < reached ? 0x4f5a51 : index === reached ? STATUS_CYAN : 0x697169);
-      material.opacity = index === reached ? 0.95 : 0.5;
+      material.color.setHex(index < reached ? 0x24413e : Number(marker.userData.neonColor ?? STATUS_CYAN));
+      material.opacity = index < reached ? 0.24 : index === reached ? 0.98 : 0.5;
+      marker.scale.setScalar(1);
     });
   }
 
   dispose(): void {
     this.resizeObserver.disconnect();
     this.controls.dispose();
+    this.composer.dispose();
     this.pmrem.dispose();
     this.renderer.dispose();
     this.container.replaceChildren();
@@ -212,26 +243,28 @@ export class RobotScene {
     const ground = new THREE.Mesh(
       new THREE.BoxGeometry(120, 120, 0.05),
       new THREE.MeshStandardMaterial({
-        color: 0xffffff,
+        color: 0x081015,
         map: asphalt,
-        roughness: 0.95,
-        metalness: 0.02,
+        roughness: 0.84,
+        metalness: 0.18,
       }),
     );
     ground.position.z = -0.035;
     ground.receiveShadow = true;
     this.scene.add(ground);
 
-    this.scene.add(createGrid(2, 55, 0x4e5550, 0.12));
-    this.scene.add(createGrid(10, 50, 0x9aa39b, 0.28));
+    this.scene.add(createGrid(1, 55, 0x183b42, 0.22));
+    this.scene.add(createGrid(5, 50, 0x52757d, 0.34));
 
     const origin = new THREE.Mesh(
       new THREE.RingGeometry(1.46, 1.54, 64),
-      new THREE.MeshStandardMaterial({
-        color: 0xd8d4cc,
-        roughness: 0.72,
-        metalness: 0.05,
+      new THREE.MeshBasicMaterial({
+        color: STATUS_CYAN,
+        transparent: true,
+        opacity: 0.72,
         side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
       }),
     );
     origin.position.z = 0.01;
@@ -240,11 +273,18 @@ export class RobotScene {
 
     const chevron = new THREE.Mesh(
       new THREE.ConeGeometry(0.12, 0.34, 3),
-      new THREE.MeshStandardMaterial({ color: 0xd8d4cc, roughness: 0.7, metalness: 0.04 }),
+      new THREE.MeshBasicMaterial({ color: STATUS_VIOLET }),
     );
     chevron.rotation.x = Math.PI / 2;
     chevron.position.set(0.55, 0, 0.02);
-    this.scene.add(chevron);
+    const originHalo = new THREE.Mesh(
+      new THREE.RingGeometry(1.72, 1.77, 64),
+      new THREE.MeshBasicMaterial({ color: STATUS_VIOLET, transparent: true, opacity: 0.28, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }),
+    );
+    originHalo.position.z = 0.008;
+    const originLight = new THREE.PointLight(STATUS_CYAN, 1.1, 5, 2);
+    originLight.position.set(0, 0, 1.3);
+    this.scene.add(chevron, originHalo, originLight);
   }
 
   private buildCollisionHulls(): void {
@@ -276,10 +316,19 @@ export class RobotScene {
       if (bodyId === 0) {
         const name = this.engine.module.mj_id2name(this.engine.model, geomType, index) || "";
         const material = fieldMaterial(fieldKindForGeom(name));
-        if (name.startsWith("beacon") || name === "gate_top") {
-          material.emissive = new THREE.Color(STATUS_CYAN);
-          material.emissiveIntensity = 0.35;
-          material.color = new THREE.Color(0x1a1e1c);
+        if (name.startsWith("crate") || name === "low_wall") {
+          material.color.setHex(OBSTACLE_ORANGE);
+          material.emissive.setHex(0x3a0b02);
+          material.emissiveIntensity = 0.72;
+          this.obstacleMaterials.push(material);
+        } else if (name.startsWith("beacon") || name.startsWith("gate")) {
+          material.emissive.setHex(name.includes("right") || name.includes("east") ? STATUS_VIOLET : STATUS_CYAN);
+          material.emissiveIntensity = 2.2;
+          material.color.setHex(0x10242a);
+          this.beaconMaterials.push(material);
+        } else if (name === "ramp") {
+          material.emissive.setHex(STATUS_VIOLET);
+          material.emissiveIntensity = 0.32;
         }
         const mesh = new THREE.Mesh(geometry, material);
         mesh.castShadow = true;
@@ -329,6 +378,22 @@ export class RobotScene {
     });
   }
 
+  private updateNeonArena(time: number): void {
+    this.obstacleMaterials.forEach((material, index) => {
+      material.emissiveIntensity = 0.58 + 0.42 * (0.5 + 0.5 * Math.sin(time * 3.4 + index));
+    });
+    this.beaconMaterials.forEach((material, index) => {
+      material.emissiveIntensity = Math.sin(time * 8 + index * 1.7) > -0.15 ? 4.1 : 0.7;
+    });
+    const marker = this.agentCheckpointMarkers[this.activeCheckpoint];
+    if (this.agentCourseGroup.visible && marker) {
+      const pulse = 0.5 + 0.5 * Math.sin(time * 5.2);
+      marker.scale.setScalar(1 + pulse * 0.055);
+      (marker.material as THREE.MeshBasicMaterial).opacity = 0.78 + pulse * 0.2;
+    }
+    this.bloomPass.strength = 0.36 + 0.04 * (0.5 + 0.5 * Math.sin(time * 1.6));
+  }
+
   private updateCamera(frame: SensorFrame): void {
     const forwardX = Math.cos(frame.yaw);
     const forwardY = Math.sin(frame.yaw);
@@ -358,6 +423,7 @@ export class RobotScene {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
+    this.composer.setSize(width, height);
   }
 }
 
@@ -381,7 +447,7 @@ function createAsphaltTexture(): THREE.CanvasTexture {
   canvas.height = 512;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Could not create asphalt texture.");
-  context.fillStyle = "#2a2c2b";
+  context.fillStyle = "#081015";
   context.fillRect(0, 0, 512, 512);
   const image = context.getImageData(0, 0, 512, 512);
   const data = image.data;

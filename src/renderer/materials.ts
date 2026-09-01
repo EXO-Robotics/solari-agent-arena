@@ -1,8 +1,10 @@
 import * as THREE from "three";
 import { VISUAL_MATERIAL_NAMES, type VisualMaterialName } from "../model/visualContract";
 
-export const HORIZON = 0x7a8288;
+export const HORIZON = 0x030609;
 export const STATUS_CYAN = 0x5cffe1;
+export const STATUS_VIOLET = 0xa985ff;
+export const OBSTACLE_ORANGE = 0xe94f26;
 
 export function createMaterialRegistry(): Record<VisualMaterialName, THREE.MeshStandardMaterial> {
   const registry = {
@@ -62,15 +64,15 @@ export function createCollisionMaterial(): THREE.MeshStandardMaterial {
 
 export function fieldMaterial(kind: "concrete" | "metal" | "crate" | "asphalt"): THREE.MeshStandardMaterial {
   if (kind === "metal") {
-    return new THREE.MeshStandardMaterial({ color: 0x6a6e68, roughness: 0.42, metalness: 0.55 });
+    return new THREE.MeshStandardMaterial({ color: 0x142b31, roughness: 0.24, metalness: 0.82, emissive: 0x091c20, emissiveIntensity: 0.34 });
   }
   if (kind === "crate") {
-    return new THREE.MeshStandardMaterial({ color: 0x6d675c, roughness: 0.84, metalness: 0.04 });
+    return new THREE.MeshStandardMaterial({ color: OBSTACLE_ORANGE, roughness: 0.32, metalness: 0.38, emissive: 0x3a0b02, emissiveIntensity: 0.72 });
   }
   if (kind === "asphalt") {
-    return new THREE.MeshStandardMaterial({ color: 0x2c2e2c, roughness: 0.95, metalness: 0 });
+    return new THREE.MeshStandardMaterial({ color: 0x081015, roughness: 0.88, metalness: 0.16 });
   }
-  return new THREE.MeshStandardMaterial({ color: 0x8b8a84, roughness: 0.88, metalness: 0.02 });
+  return new THREE.MeshStandardMaterial({ color: 0x253137, roughness: 0.68, metalness: 0.28, emissive: 0x071216, emissiveIntensity: 0.24 });
 }
 
 export function fieldKindForGeom(name: string): "concrete" | "metal" | "crate" | "asphalt" {
