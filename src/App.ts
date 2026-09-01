@@ -173,19 +173,12 @@ export class App {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-course-index]");
       if (button) this.selectCourse(Number(button.dataset.courseIndex));
     });
-    this.requireElement("#start-copy").addEventListener("click", () => void this.copyMissionPrompt(true));
-    this.requireElement("#mission-copy").addEventListener("click", () => void this.copyMissionPrompt(false));
+    this.requireElement("#mission-copy").addEventListener("click", () => void this.copyMissionPrompt());
     this.requireElement("#mission-courses").addEventListener("click", () => this.openStartScreen());
     this.requireElement("#open-courses").addEventListener("click", () => this.openStartScreen());
-    this.requireElement("#close-courses").addEventListener("click", () => this.closeStartScreen());
     this.requireElement("#guide-open").addEventListener("click", () => this.setGuideOpen(true));
     this.requireElement("#guide-close").addEventListener("click", () => this.setGuideOpen(false));
     this.requireElement("#guide-backdrop").addEventListener("click", () => this.setGuideOpen(false));
-    this.root.querySelectorAll<HTMLButtonElement>("[data-remote-track]").forEach((button) => button.addEventListener("click", () => {
-      this.remoteTrack = button.dataset.remoteTrack as RemoteTrack;
-      this.remotePairing = null;
-      this.renderRemoteTrack();
-    }));
     this.root.querySelectorAll<HTMLElement>("[data-copy-mcp-command]").forEach((button) => button.addEventListener("click", () => void this.copyMcpCommand(button)));
     this.requireInput("#course-import").addEventListener("change", (event) => void this.importCourse((event.currentTarget as HTMLInputElement).files?.[0]));
     this.requireElement("#mode-preview").addEventListener("click", () => this.setMode("preview"));
@@ -288,7 +281,6 @@ export class App {
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         this.setGuideOpen(false);
-        if (this.requireElement("#start-screen").classList.contains("start-screen--visible")) this.closeStartScreen();
       }
     });
     window.addEventListener("beforeunload", () => this.dispose(), { once: true });
@@ -537,8 +529,8 @@ export class App {
       return;
     }
     if (this.mode === "agent") {
-      trust.textContent = "AGENT TOOL TRIAL / TRANSCRIPT ONLY";
-      viewport.textContent = "AGENT-CONTROLLED BROWSER TRIAL";
+      trust.textContent = "AGENT SESSION / TRANSCRIPT ONLY";
+      viewport.textContent = "COURSE READY · AWAITING AGENT";
       return;
     }
     const states = {
@@ -939,15 +931,14 @@ export class App {
     this.requireElement("#start-screen").classList.add("start-screen--visible");
     this.requireElement(".app-shell").setAttribute("inert", "");
     window.setTimeout(() => {
-      const copy = this.requireElement("#start-copy") as HTMLButtonElement;
-      (copy.disabled ? this.requireElement(".course-row--active") : copy).focus();
+      this.requireElement(".course-row--active").focus();
     }, 60);
   }
 
   private closeStartScreen(): void {
     this.requireElement("#start-screen").classList.remove("start-screen--visible");
     this.requireElement(".app-shell").removeAttribute("inert");
-    this.requireElement("#open-courses").focus();
+    this.requireElement("#mission-copy").focus();
   }
 
   private setGuideOpen(open: boolean): void {
@@ -972,10 +963,14 @@ export class App {
     this.remotePairing = null;
     this.agentTrial.configureCourse(listing.course);
     this.scene?.configureAgentCourse(listing.course.checkpoints);
-    if (this.engine) this.resetAgentTrial(Number(this.requireInput("#agent-seed").value));
+    if (this.engine) {
+      if (this.mode !== "agent") this.setMode("agent");
+      else this.resetAgentTrial(Number(this.requireInput("#agent-seed").value));
+    }
     this.renderCourseLibrary();
     this.renderMissionSummary();
     this.renderRemoteTrack();
+    if (this.requireElement("#start-screen").classList.contains("start-screen--visible")) this.closeStartScreen();
   }
 
   private selectCourseFromUrl(courseId: string | null): void {
@@ -1004,31 +999,26 @@ export class App {
   private renderMissionSummary(): void {
     this.requireElement("#mission-course").textContent = this.activeCourse.title;
     this.requireElement("#mission-description").textContent = this.activeCourse.summary;
-    this.requireElement("#mission-authority").textContent = this.activeCourse.authoritative ? "OFFICIAL · PRACTICE OR ISOLATED SCORE" : "PRACTICE · RECORDED · NON-AUTHORITATIVE";
+    this.requireElement("#mission-authority").textContent = "WORLD READY · AWAITING FIRST DECISION";
     const isolated = this.requireElement("#agent-isolated") as HTMLButtonElement;
     isolated.disabled = !this.activeCourse.authoritative;
     isolated.textContent = this.activeCourse.authoritative ? "RUN ISOLATED SCORE" : "OFFICIAL COURSE REQUIRED";
   }
 
   private renderRemoteTrack(): void {
-    this.root.querySelectorAll<HTMLButtonElement>("[data-remote-track]").forEach((button) => {
-      const active = button.dataset.remoteTrack === this.remoteTrack;
-      button.classList.toggle("track-choice--active", active);
-      button.setAttribute("aria-pressed", String(active));
-    });
-    const copy = this.requireElement("#start-copy") as HTMLButtonElement;
+    const copy = this.requireElement("#mission-copy") as HTMLButtonElement;
     const status = this.requireElement("#remote-connect-status");
     status.classList.toggle("remote-connect-status--paused", this.remoteAvailability === "paused");
     if (!this.remotePairing) {
-      copy.textContent = this.remoteAvailability === "checking" ? "CHECKING PRACTICE…" : this.remoteAvailability === "paused" ? "HOSTED PRACTICE PAUSED" : "CREATE RUN + COPY PROMPT ↗";
+      copy.textContent = this.remoteAvailability === "checking" ? "GETTING ARENA READY…" : this.remoteAvailability === "paused" ? "HOSTED PRACTICE PAUSED" : "COPY AGENT PROMPT ↗";
       copy.disabled = this.activeCourse.source === "imported" || this.remoteAvailability === "checking" || this.remoteAvailability === "paused";
       status.textContent = this.activeCourse.source === "imported"
         ? "Imported courses stay in this browser and cannot create a hosted session."
         : this.remoteAvailability === "checking"
           ? "Checking hosted practice availability…"
           : this.remoteAvailability === "paused"
-            ? "Hosted agent sessions are paused. The simulator and field manual remain available."
-            : "No install. Paste the copied system prompt into any agent with HTTPS access.";
+            ? "Hosted agent sessions are paused. The selected course is still ready for local inspection."
+            : "Arena ready. Copy the prompt and paste it into your agent.";
     }
   }
 
@@ -1043,13 +1033,12 @@ export class App {
     this.renderRemoteTrack();
   }
 
-  private async connectRemoteAgent(): Promise<boolean> {
+  private async connectRemoteAgent(copy: HTMLButtonElement): Promise<boolean> {
     if (this.activeCourse.source === "imported") {
       this.requireElement("#remote-connect-status").textContent = "Imported routes are local-only. Choose a built-in course for hosted agent practice.";
       return false;
     }
     const seed = Number(this.requireInput("#agent-seed").value) || 42;
-    const copy = this.requireElement("#start-copy") as HTMLButtonElement;
     copy.disabled = true; copy.textContent = "CREATING SOLARI RUN…";
     this.requireElement("#remote-connect-status").textContent = "Solari Browser is loading the selected course and verifying its seed and manifest.";
     try {
@@ -1092,10 +1081,11 @@ export class App {
     window.setTimeout(() => { button.textContent = button.dataset.copyLabel ?? "COPY SETUP COMMAND"; }, 1_800);
   }
 
-  private async copyMissionPrompt(closeAfterCopy: boolean): Promise<void> {
+  private async copyMissionPrompt(): Promise<void> {
     const seed = Number(this.requireInput("#agent-seed").value) || 42;
+    const button = this.requireElement("#mission-copy");
     if (!this.remotePairing || this.remotePairing.expiresAt <= Date.now() || this.remotePairing.courseId !== this.activeCourse.course.courseId || this.remotePairing.seed !== seed || this.remotePairing.track !== this.remoteTrack) {
-      const connected = await this.connectRemoteAgent();
+      const connected = await this.connectRemoteAgent(button as HTMLButtonElement);
       if (!connected || !this.remotePairing) return;
     }
     const prompt = buildAgentPrompt(
@@ -1105,8 +1095,7 @@ export class App {
       this.remoteTrack,
       `${window.location.origin}/api/arena-command`,
     );
-    const button = this.requireElement(closeAfterCopy ? "#start-copy" : "#mission-copy");
-    const restingLabel = closeAfterCopy ? "CREATE RUN + COPY PROMPT ↗" : button.textContent;
+    const restingLabel = "COPY AGENT PROMPT ↗";
     try {
       await this.writeClipboard(prompt);
       button.textContent = "PROMPT COPIED — GIVE IT TO YOUR AGENT";
@@ -1186,7 +1175,7 @@ export class App {
       <div class="app-shell">
         <header class="topbar">
           <div class="brand"><span class="brand__mark">SA</span><span>SOLARI AGENT ARENA</span></div>
-          <nav class="product-nav" aria-label="Arena navigation"><button id="open-courses">COURSES</button><button id="guide-open">TOOLS & PHYSICS</button></nav>
+          <nav class="product-nav" aria-label="Arena navigation"><button id="open-courses">CHOOSE COURSE</button><button id="guide-open" hidden>TOOLS & PHYSICS</button></nav>
           <div class="system-state"><span id="phase-dot" class="status-dot status-dot--loading"></span><span id="phase-label" data-testid="phase-label">LOADING</span><small>MUJOCO 3.12 / WASM</small></div>
         </header>
 
@@ -1265,11 +1254,13 @@ export class App {
             </div>
             <div id="agent-panel" class="inspector-panel inspector-panel--agent">
               <header class="mission-head">
-                <span id="mission-authority">OFFICIAL · ISOLATED SCORE ELIGIBLE</span>
+                <span id="mission-authority">COURSE READY</span>
                 <h1 id="mission-course">${this.escapeHtml(this.activeCourse.title)}</h1>
                 <p id="mission-description">${this.escapeHtml(this.activeCourse.summary)}</p>
-                <div class="mission-actions"><button id="mission-copy" class="button button--accent">COPY AGENT PROMPT</button><button id="mission-courses" type="button" class="button button--quiet">CHANGE COURSE</button></div>
-                <label class="mission-seed">SEED <input id="agent-seed" type="number" min="0" max="4294967295" value="42" /></label>
+                <div class="mission-actions"><button id="mission-copy" class="button button--accent">COPY AGENT PROMPT ↗</button><button id="mission-courses" type="button" hidden>CHANGE COURSE</button></div>
+                <input id="agent-seed" type="hidden" value="42" />
+                <p id="remote-connect-status" class="remote-connect-status" aria-live="polite">Getting the arena ready…</p>
+                <textarea id="prompt-fallback" class="prompt-fallback" aria-label="Agent mission prompt"></textarea>
               </header>
               <dl class="agent-grid">
                 <div><dt>PHASE</dt><dd id="agent-phase" data-testid="agent-phase">IDLE</dd></div>
@@ -1346,15 +1337,10 @@ export class App {
       <section id="start-screen" class="start-screen" role="dialog" aria-modal="true" aria-labelledby="start-title" aria-label="Choose an agent course">
         <div class="start-screen__veil"></div>
         <div class="start-screen__content">
-          <header><span>SA / COURSE LIBRARY</span><button id="close-courses" aria-label="Close course library">×</button></header>
-          <div class="start-screen__intro"><small>SOLARI AGENT ARENA</small><h1 id="start-title">Choose. Copy.<br/>Let it drive.</h1><p>Paste one system prompt into your agent. No plugins, clone, or setup.</p><div class="track-picker" aria-label="Observation track"><span>02 / AGENT SEES</span><div><button class="track-choice track-choice--active" data-remote-track="state-v1" aria-pressed="true"><b>STATE</b><small>Exact telemetry</small></button><button class="track-choice" data-remote-track="vision-v1" aria-pressed="false"><b>VISION</b><small>Arena image only</small></button></div></div></div>
-          <div class="course-heading"><span>01 / CHOOSE COURSE</span><small>Selected route is highlighted</small></div>
+          <div class="start-screen__intro"><small>SOLARI AGENT ARENA</small><h1 id="start-title">Choose a course.</h1><p>One click loads the world and leaves it ready for your agent's first decision.</p></div>
+          <div class="course-heading"><span>AVAILABLE COURSES</span><small>Click once to enter</small></div>
           <div id="course-list" class="course-list"></div>
           <div class="selected-course"><span>SELECTED</span><strong id="selected-course-name">${this.activeCourse.title}</strong><p id="selected-course-summary">${this.activeCourse.summary}</p><small id="selected-course-meta"></small></div>
-          <div class="start-screen__actions"><button id="start-copy" class="start-primary" disabled>CHECKING PRACTICE…</button></div>
-          <p id="remote-connect-status" class="remote-connect-status" aria-live="polite">Checking hosted practice availability…</p>
-          <div class="zero-setup-note"><b>ZERO-INSTALL HANDOFF</b><span>Short-lived HTTPS capability · no Solari key in the prompt</span></div><p id="course-import-status" class="course-import-status"></p>
-          <textarea id="prompt-fallback" class="prompt-fallback" aria-label="Agent mission prompt"></textarea>
         </div>
       </section>
       <div id="guide-drawer" class="guide-drawer" aria-hidden="true">
@@ -1364,7 +1350,7 @@ export class App {
           <section class="tool-setup"><span>01 / COPY + PASTE</span><h3>No agent setup</h3><p>The course button reserves a recorded Solari Browser and copies a complete system prompt. Paste it into any coding agent with shell or HTTPS access. The prompt carries only a short-lived encrypted run capability; Solari credentials remain server-side.</p><code>POST /api/arena-command</code></section>
           <section class="tool-list"><span>02 / HTTPS LOOP</span><dl><div><dt>connect</dt><dd>Redeem the course-bound ticket and return an opaque session.</dd></div><div><dt>observe</dt><dd>Read track-specific state without advancing simulation.</dd></div><div><dt>act</dt><dd>Apply one expected bounded action and inspect its result.</dd></div><div><dt>finish</dt><dd>Release Browser and return transcript plus practice receipt.</dd></div><div><dt>disconnect</dt><dd>Release safely without issuing a result.</dd></div></dl></section>
           <section class="physics-sheet"><span>03 / PHYSICS</span><h3>MuJoCo 3.12 · deterministic clock</h3><code>M(q)·v̇ + c(q,v) = τ + J(q)ᵀf</code><p><b>Physics step</b> Δt = 0.002 s<br/><b>Control/gait tick</b> Δt<sub>c</sub> = 0.010 s<br/><b>Planar command</b> v<sub>x</sub> = cos(ψ)d, v<sub>y</sub> = sin(ψ)d<br/><b>Energy</b> E += Σ|τᵢq̇ᵢ|Δt</p><small>Observing, screenshots, network delay, and model thinking consume zero simulated time.</small></section>
-          <section><span>04 / AUTHORITY</span><h3>Practice in Browser. Judge in Sandbox.</h3><p>HTTPS practice is isolated from your machine and recorded in Solari Browser, but the page still owns the simulation and cannot mint authority. Official transcripts are replayed and scored in fixed-step MuJoCo inside a fresh Solari Sandbox.</p></section><section class="local-fallback"><span>05 / ADVANCED</span><h3>Creator and MCP tools</h3><p>Course JSON import, remote MCP, and the checked-in stdio MCP remain optional development surfaces. Imported routes stay in this browser and cannot mint a score.</p><label class="import-course">IMPORT COURSE JSON<input id="course-import" type="file" accept="application/json,.json" /></label><a href="/course-template.json" download>Download the course template</a></section>
+          <section><span>04 / AUTHORITY</span><h3>Practice in Browser. Judge in Sandbox.</h3><p>HTTPS practice is isolated from your machine and recorded in Solari Browser, but the page still owns the simulation and cannot mint authority. Official transcripts are replayed and scored in fixed-step MuJoCo inside a fresh Solari Sandbox.</p></section><section class="local-fallback"><span>05 / ADVANCED</span><h3>Creator and MCP tools</h3><p>Course JSON import, remote MCP, and the checked-in stdio MCP remain optional development surfaces. Imported routes stay in this browser and cannot mint a score.</p><label class="import-course">IMPORT COURSE JSON<input id="course-import" type="file" accept="application/json,.json" /></label><a href="/course-template.json" download>Download the course template</a><p id="course-import-status" class="course-import-status"></p></section>
         </aside>
       </div>
       <div id="boot" class="boot"><div class="boot__brand">SA</div><p id="boot-label">Initializing Solari Agent Arena</p><div class="boot__track"><i id="boot-progress"></i></div><small>LOCAL PREVIEW BOOTS FIRST / AUTHORITY STAYS SERVER-SIDE</small></div>
