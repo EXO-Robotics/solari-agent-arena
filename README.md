@@ -4,6 +4,15 @@
 
 [Live arena](https://solari-agent-arena.vercel.app/) · [Authoritative agent replay](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid-agent.solari-run.json) · [Frozen agent E2E proof](evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/assertions.json) · [Architecture](docs/ARCHITECTURE.md)
 
+## For reviewers — 30 seconds to the first move
+
+1. Open the **Live arena**. The selected course is already loaded and ready.
+2. Choose a course, click **COPY AGENT PROMPT**, and paste the complete prompt into a coding agent that can make ordinary HTTPS requests.
+3. The agent redeems the short-lived run, observes, and drives. Its live Solari Browser session is recorded and explicitly non-authoritative.
+4. Open the **Authoritative agent replay** to inspect the frozen Solari Sandbox score and hash-bound evidence without spending a new evaluation session.
+
+The use case is verifiable infrastructure for agents that act: local/browser behavior is fast to inspect, while only deterministic replay inside a fresh Solari Sandbox can issue an official score.
+
 Solari Agent Arena turns [Robot-3D-Sim](https://github.com/EXO-Robotics/Robot-3D-Sim) into an embodied-agent benchmark. A local model, Codex, or browser-driving agent controls the same MuJoCo/Three.js arena as the human reviewer. The primary path is a zero-install HTTPS system prompt backed by a recording Solari Browser; remote MCP, WebMCP, and the checked-in stdio bridge remain optional developer surfaces.
 
 The browser trial is deliberately **non-authoritative**. The only authoritative score comes from replaying the validated action transcript with fixed-step MuJoCo inside a fresh **Solari Sandbox**, then binding the result, telemetry, replay state, course, seed, and transcript to SHA-256 evidence.
@@ -12,10 +21,10 @@ The browser trial is deliberately **non-authoritative**. The only authoritative 
 
 No repository clone, MCP installation, local Node process, browser attachment, or personal Solari key is required.
 
-1. Choose a built-in course and a **State** or **Vision** observation track.
-2. Click **Create Run + Copy Prompt**, then paste that complete system prompt into any coding agent with shell or ordinary HTTPS access.
+1. Choose a built-in course; the public handoff uses exact state telemetry so the agent can begin immediately.
+2. Click **COPY AGENT PROMPT**, then paste that complete system prompt into any coding agent with shell or ordinary HTTPS access.
 
-The server launches one recording Solari Browser, loads the exact course and seed, verifies the manifest, and gives the page a five-minute encrypted pairing capability. The prompt embeds that temporary capability plus one versioned HTTPS endpoint and the complete `connect → observe / act → finish` contract. State exposes exact pose/heading/speed without an image. Vision exposes a cropped arena PNG plus phase/progress/budget, while withholding pose, yaw, velocity, pitch, and checkpoint coordinates. The simulation clock is frozen while the model looks or thinks.
+The server launches one recording Solari Browser, loads the exact course and seed, verifies the manifest, and gives the page a five-minute encrypted pairing capability. The prompt embeds that temporary capability plus one versioned HTTPS endpoint and the complete `connect → observe / act → finish` contract. The public flow exposes exact pose/heading/speed without an image; the lower-level contract retains a restricted Vision track for dedicated verifiers. The simulation clock is frozen while the model looks or thinks.
 
 A text-only chat with no shell, browser, HTTP, or tool capability cannot control an external benchmark; the prompt reports `ARENA_HTTP_UNAVAILABLE` instead of pretending otherwise.
 
@@ -258,7 +267,7 @@ Install Upstash Redis and QStash through the Vercel Marketplace so their server-
 
 Conservative public defaults are two concurrent sessions globally, one per holder and IP, two sessions per holder/IP per UTC day, and twenty sessions globally per UTC day. All are server-side environment variables. Redis failure, stale sweep heartbeat, QStash scheduling failure, cleanup failure, or configuration drift prevents a public ticket. Failed cleanup is moved behind later due leases with bounded backoff; stale global/IP indexes are pruned using a separate lease-to-IP mapping. A provider-create outcome that cannot be confirmed retains its charged capacity rather than pretending no work exists. `SOLARI_REMOTE_ENABLED` remains the emergency kill switch.
 
-The current QStash Free allowance shown by the Vercel Marketplace is 500 messages per day. The five-minute recovery sweep consumes 288 scheduled deliveries per day; at the twenty-session global cap, the two expiry deliveries per admitted session add at most 40, leaving 172 deliveries for the setup probe and ordinary retries. Monitor QStash usage before raising the Arena daily limit. The shared Free Redis database is separated with the `SOLARI_REMOTE_REDIS_SCOPE` key namespace, but it is still an operational dependency shared with another project; a dedicated database is the cleaner future boundary if a suitable free slot or paid plan becomes available.
+The connected QStash resource currently reports a 1,000-message daily Free allowance, but Arena deliberately budgets against the more conservative 500-message figure previously shown by the Vercel Marketplace. The five-minute recovery sweep consumes 288 scheduled deliveries per day; at the twenty-session global cap, the two expiry deliveries per admitted session add at most 40, leaving at least 172 deliveries under that conservative budget for setup and ordinary retries. Monitor QStash usage before raising the Arena daily limit. The shared Free Redis database is separated with the `SOLARI_REMOTE_REDIS_SCOPE` key namespace, but it is still an operational dependency shared with another project; a dedicated database is the cleaner future boundary if a suitable free slot or paid plan becomes available.
 
 ## Relationship to Robot-3D-Sim
 
