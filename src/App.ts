@@ -1010,7 +1010,7 @@ export class App {
     const status = this.requireElement("#remote-connect-status");
     status.classList.toggle("remote-connect-status--paused", this.remoteAvailability === "paused");
     if (!this.remotePairing) {
-      copy.textContent = this.remoteAvailability === "checking" ? "GETTING ARENA READY…" : this.remoteAvailability === "paused" ? "HOSTED PRACTICE PAUSED" : "COPY AGENT PROMPT ↗";
+      copy.textContent = "COPY AGENT PROMPT ↗";
       copy.disabled = this.activeCourse.source === "imported" || this.remoteAvailability === "checking" || this.remoteAvailability === "paused";
       status.textContent = this.activeCourse.source === "imported"
         ? "Imported courses stay in this browser and cannot create a hosted session."
@@ -1067,7 +1067,7 @@ export class App {
       return true;
     } catch (error) {
       this.remotePairing = null;
-      copy.textContent = this.remoteAvailability === "paused" ? "HOSTED PRACTICE PAUSED" : "TRY AGAIN · CREATE RUN";
+      copy.textContent = this.remoteAvailability === "paused" ? "COPY AGENT PROMPT ↗" : "TRY AGAIN · CREATE RUN";
       copy.disabled = this.remoteAvailability === "paused";
       this.requireElement("#remote-connect-status").textContent = String(error instanceof Error ? error.message : error);
       return false;
