@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "solari.arena.mcp-proof.v1",
+  "completedAt": "2026-09-01T12:23:56.132Z",
+  "tools": [
+    "arena_act",
+    "arena_close",
+    "arena_look",
+    "arena_observe",
+    "arena_open",
+    "arena_transcript"
+  ],
+  "zeroCostObservation": true,
+  "action": {
+    "schemaVersion": "solari.arena.agent-tools.v1",
+    "courseId": "arena-slalom-ramp-v1",
+    "phase": "running",
+    "simulatedTimeSeconds": 0.8000000000000006,
+    "position": {
+      "x": 0.671279600797104,
+      "y": 0.002714770249296614,
+      "height": 0.8185608385300973
+    },
+    "yawRadians": 0.00404415007680674,
+    "speedMps": 0.9061399424603189,
+    "bodyPitchRadians": 0.216138693909536,
+    "checkpoints": {
+      "reached": 0,
+      "total": 5,
+      "nextId": "slalom-entry"
+    },
+    "collisions": 0,
+    "actionsUsed": 1,
+    "actionBudget": 120
+  },
+  "transcript": {
+    "schemaVersion": "solari.arena.agent-transcript.v1",
+    "courseId": "arena-slalom-ramp-v1",
+    "seed": 42,
+    "actions": [
+      {
+        "sequence": 0,
+        "drive": 1.2,
+        "turn": 0,
+        "durationMs": 800
+      }
+    ]
+  },
+  "receipt": {
+    "schemaVersion": "solari.arena.agent-session.v1",
+    "sessionIdHash": "6184ffe4fa68031a3146fab06f641c6a1bc7a2e5d13027572543c2185c212319",
+    "arenaUrl": "https://solari-agent-arena.vercel.app/?agent=1",
+    "startedAt": "2026-09-01T12:23:34.601Z",
+    "completedAt": "2026-09-01T12:23:56.128Z",
+    "transcriptHash": "f381ebe11d9dc834ead40e58f1fa7529ab261c35b8de98003b6626e3a0508b5e",
+    "screenshotHash": "41ee0a318bd7abf5e4eaa139ac5a6f85dc5addc88068d90e808260c4315aa376",
+    "replayHash": "1a1b423495737eaca75bb4eda73ac5f82488fb3d2cc85ad11e07721342280bbc"
+  },
+  "passed": true
+}

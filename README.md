@@ -2,7 +2,7 @@
 
 > Let an AI agent see a robot, control it through bounded tools, and cross an obstacle course. Preview instantly in the browser; score only by deterministic replay inside Solari.
 
-[Live arena](https://solari-agent-arena.vercel.app/?agent=1) · [Authoritative agent replay](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid-agent.solari-run.json) · [Frozen agent E2E proof](evidence/agent-e2e/cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f/assertions.json) · [Architecture](docs/ARCHITECTURE.md)
+[Live arena](https://solari-agent-arena.vercel.app/?agent=1) · [Authoritative agent replay](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid-agent.solari-run.json) · [Frozen agent E2E proof](evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/assertions.json) · [Architecture](docs/ARCHITECTURE.md)
 
 Solari Agent Arena turns [Robot-3D-Sim](https://github.com/EXO-Robotics/Robot-3D-Sim) into an embodied-agent benchmark. A local model, Codex, or browser-driving agent gets four narrow operations—reset, observe, act, and transcript—while looking at the same MuJoCo/Three.js arena as the human reviewer. The agent must visit five checkpoints, route around the ramp, and reach the final beacon.
 
@@ -52,7 +52,7 @@ flowchart LR
   end
   E --> AR[solari.arena.agent-run.v1<br/>hash-bound evidence]
   AR --> RP[Browser integrity check + recorded replay]
-  VR[Solari Browser release verifier] -->|site tools + DOM + hashes + completion| RP
+  VR[Solari Browser release verifier] -->|numeric form + DOM + hashes + completion| RP
 ```
 
 The trust claim is intentionally narrow: **the external model is outside the isolated boundary**. Sandbox authority covers validated transcript replay and scoring. A manipulated browser trial cannot mint an authoritative score.
@@ -74,7 +74,7 @@ Codex can discover site tools from an open page without installing a separate MC
 
 ### Local models or Codex CLI: standard MCP bridge
 
-The checked-in stdio server launches a recording-enabled Solari Browser and exposes `arena_open`, `arena_observe`, `arena_look`, `arena_act`, `arena_transcript`, and `arena_close`. `arena_look` and every action return both structured state and a PNG view. Closing can retain the transcript, final screenshot, rrweb replay, and hash receipt under `evidence/agent-sessions/`.
+The checked-in stdio server launches a recording-enabled Solari Browser and exposes `arena_open`, `arena_reset`, `arena_observe`, `arena_look`, `arena_act`, `arena_transcript`, and `arena_close`. `arena_reset` reuses the active Browser session, while `arena_look` and every action return both structured state and a PNG view. Closing can retain the transcript, final screenshot, rrweb replay, and hash receipt under `evidence/agent-sessions/`.
 
 For Codex, add it from the repository root:
 
@@ -123,6 +123,7 @@ Both contracts are unsigned integrity artifacts, not remote attestation. `sandbo
 | Claim | Proof | Boundary |
 |---|---|---|
 | Browser thinking costs zero simulated time | Browser E2E observes time 0, waits 750 ms wall time, observes time 0 | Browser behavior, not authority |
+| Local-model MCP bridge works against production | Real stdio MCP handshake lists seven tools, proves reset plus zero-cost observation and exact 800 ms action, completes the 21-action 5/5 course, then retains a hash-bound screenshot/rrweb receipt | Tool transport and presentation, not scoring authority |
 | Agent course can be completed | Valid transcript: 5/5, 21 actions, 26.124 s, 0 collisions | Local deterministic runner + live Sandbox |
 | Agent score is repeatable in Solari | Two fresh Sandboxes produce identical physics metrics and telemetry hash `f87f2653…71dfbcf` | Same frozen Sandbox evaluator environment |
 | Hanging generated controller is bounded | QuickJS interrupt → timeout, Sandbox killed | Controller-source qualification path |
@@ -130,7 +131,7 @@ Both contracts are unsigned integrity artifacts, not remote attestation. `sandbo
 | Failure cases do not poison the service | valid → hang → capability probe → valid reproduces telemetry/metrics | Tested service recovery, not host forensics |
 | Public UI matches authority | Solari Browser compares all fields/hashes and reaches replay `COMPLETE` | Deployed presentation fidelity |
 
-Retained artifacts live in `public/evidence/`, `evidence/e2e/`, and `evidence/agent-e2e/`. See [docs/QUALIFICATION.md](docs/QUALIFICATION.md) for exact IDs and hashes.
+Retained artifacts live in `public/evidence/`, `evidence/e2e/`, `evidence/agent-e2e/`, and `evidence/mcp/`. See [docs/QUALIFICATION.md](docs/QUALIFICATION.md) for exact IDs and hashes.
 
 ## Local setup
 
@@ -160,6 +161,7 @@ Useful commands:
 npm run qualify:local
 npm run qualify:solari-agent
 npm run agent:mcp
+npm run verify:mcp-bridge
 npm run verify:agent-benchmark
 ```
 

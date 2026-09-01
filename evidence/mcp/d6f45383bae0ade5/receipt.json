@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "solari.arena.agent-session.v1",
+  "sessionIdHash": "d6f45383bae0ade5c148bdc81c0c1bb706af0783ff52cdb2d1b471d6eb2678b9",
+  "arenaUrl": "https://solari-agent-arena.vercel.app/?agent=1",
+  "startedAt": "2026-09-01T12:37:35.155Z",
+  "completedAt": "2026-09-01T12:40:07.107Z",
+  "transcriptHash": "069e233483049d5c223b29b694d35b944dfc5b8b635c34c8ad079653ce5357fc",
+  "screenshotHash": "1b6191cd26f2343de86189ac2b8e35e529b037bdf635a3c92514e0d108d72fe9",
+  "replayHash": "b7a593e7dc6c5b30f78717bbe741a7c97c3afd1641e22c44faaa9fd10c2e5fbe"
+}

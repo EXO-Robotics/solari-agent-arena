@@ -9,8 +9,9 @@ Evidence states are intentionally explicit:
 
 | Case | Local | Solari Sandbox | Solari Browser | Evidence |
 |---|---|---|---|---|
-| Agent tool clock | `LOCAL_PASS` — observe, wait one wall second, observe; simulated time stayed fixed | Not applicable; browser tool behavior | `BROWSER_PASS` — 750 ms wall delay left displayed simulation time at 0.00 s | `evidence/agent-e2e/cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f/assertions.json` |
-| Valid agent transcript, seed 42 | `LOCAL_PASS` — deterministic, 5/5, 21 actions, 26.124 s, zero collisions | `SOLARI_PASS` — two fresh Sandboxes produced identical metrics and telemetry hash `f87f2653…71dfbcf`; teardown confirmed | `BROWSER_PASS` — numeric UI completed 5/5 with exact transcript; all artifact fields matched; replay `COMPLETE` | `public/evidence/valid-agent.solari-run.json`; `public/evidence/agent-qualification-summary.json`; `evidence/agent-e2e/cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f/assertions.json` |
+| Agent tool clock | `LOCAL_PASS` — observe, wait one wall second, observe; simulated time stayed fixed | Not applicable; browser tool behavior | `BROWSER_PASS` — 750 ms wall delay left displayed simulation time at 0.00 s | `evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/assertions.json` |
+| Local-model MCP transport | `LOCAL_PASS` — real stdio MCP handshake listed seven tools, proved reset and an exact 800 ms action, then completed the 21-action 5/5 course with the canonical transcript | `BROWSER_PASS` transport — bridge launched recording-enabled Solari Browser against production and retained its session | Not a score claim | `evidence/mcp/d6f45383bae0ade5/assertions.json` |
+| Valid agent transcript, seed 42 | `LOCAL_PASS` — deterministic, 5/5, 21 actions, 26.124 s, zero collisions | `SOLARI_PASS` — two fresh Sandboxes produced identical metrics and telemetry hash `f87f2653…71dfbcf`; teardown confirmed | `BROWSER_PASS` — numeric UI completed 5/5 with exact transcript; all artifact fields matched; replay `COMPLETE` | `public/evidence/valid-agent.solari-run.json`; `public/evidence/agent-qualification-summary.json`; `evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/assertions.json` |
 | Valid controller, seed 42 | `LOCAL_PASS` — deterministic hash/metrics, 4/4, zero collisions | `SOLARI_PASS` — succeeded, result `2704f608…f74dd2c0` | `BROWSER_PASS` — all evidence fields matched; replay reached `COMPLETE` | `public/evidence/valid.solari-run.json`; `evidence/e2e/b1706f4c-95e6-4245-85e9-6674f97834bb/assertions.json` |
 | Hanging controller | `LOCAL_PASS` — QuickJS interrupt, exit 124 | `SOLARI_PASS` — timeout, teardown confirmed, result `1ec51d60…38987f47` | Not applicable to empty replay | `public/evidence/hanging.solari-run.json` |
 | Capability probe | `LOCAL_PASS` — `process` absent, runner-only failure | `SOLARI_PASS` — rejected, teardown confirmed, result `2e433ca7…aeb73bc6` | Not applicable to empty replay | `public/evidence/capability-attempt.solari-run.json` |
@@ -29,7 +30,7 @@ npm run build
 
 Completed 2026-09-01 with `@solarisdk/sandbox` 0.1.2 against template `base`. The final valid run reproduced telemetry hash `3147f1ebe1ef4070ac8168ceed35fd53d1c95799d3a6c787701fc145b2d35cfe` after both failure cases. Every issued contract reports `sandboxTerminated: true`. This proves evaluator-service recovery under the tested sequence; it is not physical-host forensics or remote attestation.
 
-The agent transcript milestone also completed on 2026-09-01. Run IDs `cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f` and `4421a877-00ec-4e73-a711-7fcba6141c60` each completed 5/5 checkpoints in 21 actions, 26.124 simulated seconds, zero collisions, and score 14,304. Both fresh Sandboxes produced telemetry hash `f87f265301a8d64d54a85761f912cc5a5e812af96f46bf654a2ece03571dfbcf` and confirmed teardown.
+The final agent transcript milestone also completed on 2026-09-01. Run IDs `0472ad47-5a2c-4c7f-9dd5-a590ada0880d` and `41501a74-9b9d-4590-b98b-9caee7218691` each completed 5/5 checkpoints in 21 actions, 26.124 simulated seconds, zero collisions, and score 14,304. Both fresh Sandboxes produced telemetry hash `f87f265301a8d64d54a85761f912cc5a5e812af96f46bf654a2ece03571dfbcf` and confirmed teardown.
 
 ## Production Browser milestone
 
@@ -41,10 +42,16 @@ Completed 2026-09-01 with `@solarisdk/browser` 0.1.2 against [the production rep
 - [`solari-browser-replay.ndjson`](../evidence/e2e/b1706f4c-95e6-4245-85e9-6674f97834bb/solari-browser-replay.ndjson)
 - [`hashes.json`](../evidence/e2e/b1706f4c-95e6-4245-85e9-6674f97834bb/hashes.json)
 
-The embodied-agent production proof completed against deployed commit `8ee3d76e2a0e723792e2a7882a8787f260f1a4d1`. A recording-enabled Solari Browser used the reviewer-visible numeric action form to submit all 21 bounded actions, proved a 750 ms wall delay consumed zero simulated time, reached 5/5 with zero collisions, and read back the exact transcript. It then loaded run `cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f`, matched run/transcript/outcome/checkpoint/score/time/collision/seed/telemetry/result fields, and waited for replay `COMPLETE`. The browser trial completed at 26.69 s while the authoritative Sandbox artifact completed at 26.124 s; this expected cross-runtime difference is why browser output is explicitly non-authoritative. Retained proof:
+The final embodied-agent production proof completed against deployed commit `1143c368a209cba09ce915196f6ba284bf840abe`. A recording-enabled Solari Browser used the reviewer-visible numeric action form to submit all 21 bounded actions, proved a 750 ms wall delay consumed zero simulated time, reached 5/5 with zero collisions, and read back the exact transcript. It then loaded run `0472ad47-5a2c-4c7f-9dd5-a590ada0880d`, matched run/transcript/outcome/checkpoint/score/time/collision/seed/telemetry/result fields, and waited for replay `COMPLETE`. The browser trial completed at 26.18 s while the authoritative Sandbox artifact completed at 26.124 s; this expected cross-runtime floating-point difference is why browser output is explicitly non-authoritative. Retained proof:
 
-- [`assertions.json`](../evidence/agent-e2e/cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f/assertions.json)
-- [`agent-course-complete.png`](../evidence/agent-e2e/cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f/agent-course-complete.png)
-- [`authoritative-artifact-loaded.png`](../evidence/agent-e2e/cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f/authoritative-artifact-loaded.png)
-- [`authoritative-replay-complete.png`](../evidence/agent-e2e/cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f/authoritative-replay-complete.png)
-- [`solari-browser-replay.ndjson`](../evidence/agent-e2e/cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f/solari-browser-replay.ndjson)
+- [`assertions.json`](../evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/assertions.json)
+- [`agent-course-complete.png`](../evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/agent-course-complete.png)
+- [`authoritative-artifact-loaded.png`](../evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/authoritative-artifact-loaded.png)
+- [`authoritative-replay-complete.png`](../evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/authoritative-replay-complete.png)
+- [`solari-browser-replay.ndjson`](../evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/solari-browser-replay.ndjson)
+
+The local-model stdio MCP bridge was independently exercised against the same production deployment. The retained proof includes seven-tool discovery, reset, zero-cost observation, an exact 800 ms action boundary, a full 21-action 5/5 course with zero collisions, the canonical transcript, final screenshot, and rrweb/hash receipt:
+
+- [`MCP assertions.json`](../evidence/mcp/d6f45383bae0ade5/assertions.json)
+- [`MCP receipt.json`](../evidence/mcp/d6f45383bae0ade5/receipt.json)
+- [`MCP final.png`](../evidence/mcp/d6f45383bae0ade5/final.png)

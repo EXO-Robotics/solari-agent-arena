@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const child = spawn(process.execPath, ["scripts/arena-mcp-server.mjs"], { cwd: process.cwd(), env: process.env, stdio: ["pipe", "pipe", "pipe"] });
@@ -45,7 +45,7 @@ try {
   notify("notifications/initialized", {});
   const listed = await request("tools/list", {});
   const names = listed.tools.map((tool) => tool.name).sort();
-  const expected = ["arena_act", "arena_close", "arena_look", "arena_observe", "arena_open", "arena_transcript"];
+  const expected = ["arena_act", "arena_close", "arena_look", "arena_observe", "arena_open", "arena_reset", "arena_transcript"];
   if (JSON.stringify(names) !== JSON.stringify(expected)) throw new Error(`MCP tool list mismatch: ${names.join(",")}`);
   const opened = await callTool("arena_open", { seed: 42 });
   arenaOpened = true;
@@ -53,10 +53,18 @@ try {
   await new Promise((resolve) => setTimeout(resolve, 750));
   const after = await callTool("arena_observe");
   if (opened.simulatedTimeSeconds !== 0 || before.simulatedTimeSeconds !== 0 || after.simulatedTimeSeconds !== 0) throw new Error("MCP observation advanced simulated time.");
-  const acted = await callTool("arena_act", { drive: 1.2, turn: 0, durationMs: 800 });
-  if (acted.actionsUsed !== 1 || Math.abs(acted.simulatedTimeSeconds - 0.8) > 0.01) throw new Error(`MCP action receipt mismatch: ${JSON.stringify(acted)}`);
+  const boundaryAction = await callTool("arena_act", { drive: 1.2, turn: 0, durationMs: 800 });
+  if (boundaryAction.actionsUsed !== 1 || Math.abs(boundaryAction.simulatedTimeSeconds - 0.8) > 0.01) throw new Error(`MCP action receipt mismatch: ${JSON.stringify(boundaryAction)}`);
+  const resetObservation = await callTool("arena_reset", { seed: 42 });
+  if (resetObservation.actionsUsed !== 0 || resetObservation.simulatedTimeSeconds !== 0) throw new Error(`MCP reset receipt mismatch: ${JSON.stringify(resetObservation)}`);
+  const validTranscript = JSON.parse(await readFile("fixtures/agents/valid-transcript.json", "utf8"));
+  let finalObservation = resetObservation;
+  for (const action of validTranscript.actions) finalObservation = await callTool("arena_act", action);
+  if (finalObservation.phase !== "complete" || finalObservation.checkpoints.reached !== finalObservation.checkpoints.total || finalObservation.collisions !== 0 || finalObservation.actionsUsed !== validTranscript.actions.length) {
+    throw new Error(`MCP full-course receipt mismatch: ${JSON.stringify(finalObservation)}`);
+  }
   const transcript = await callTool("arena_transcript");
-  if (transcript.actions.length !== 1 || transcript.actions[0].durationMs !== 800) throw new Error("MCP transcript mismatch.");
+  if (JSON.stringify(transcript) !== JSON.stringify(validTranscript)) throw new Error("MCP full-course transcript mismatch.");
   const closed = await callTool("arena_close", { retainEvidence: true });
   arenaClosed = true;
   if (!closed.receipt?.replayHash || !closed.receipt?.screenshotHash || !closed.receipt?.transcriptHash) throw new Error("MCP close receipt is incomplete.");
@@ -66,7 +74,7 @@ try {
   await copyFile(join(closed.evidenceDirectory, "receipt.json"), join(proofDir, "receipt.json"));
   await writeFile(join(proofDir, "assertions.json"), `${JSON.stringify({
     schemaVersion: "solari.arena.mcp-proof.v1", completedAt: new Date().toISOString(), tools: names,
-    zeroCostObservation: true, action: acted, transcript, receipt: closed.receipt, passed: true,
+    zeroCostObservation: true, boundaryAction, resetObservation, finalObservation, transcript, receipt: closed.receipt, passed: true,
   }, null, 2)}\n`);
   console.log(`MCP bridge verification passed: ${proofDir}`);
 } finally {

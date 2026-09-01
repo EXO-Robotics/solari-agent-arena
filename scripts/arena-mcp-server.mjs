@@ -30,8 +30,13 @@ class ArenaBrowser {
     this.startedAt = new Date().toISOString();
     await this.page.goto(this.url, { waitUntil: "domcontentloaded", timeout: 60_000 });
     await this.page.getByTestId("agent-observation-json").waitFor({ timeout: 60_000 });
-    await this.page.locator("#agent-seed").fill(String(seed));
-    await this.page.getByRole("button", { name: "RESET TRIAL" }).click();
+    return this.reset(seed);
+  }
+
+  async reset(seed = 42) {
+    const page = this.requirePage();
+    await page.locator("#agent-seed").fill(String(seed));
+    await page.getByRole("button", { name: "RESET TRIAL" }).click();
     return this.observe();
   }
 
@@ -138,6 +143,11 @@ function buildServer() {
     inputSchema: z.object({}),
     annotations: { readOnlyHint: true },
   }, async () => textResult(await arena.observe()));
+  server.registerTool("arena_reset", {
+    title: "Reset robot trial",
+    description: "Reset the current browser trial to a uint32 seed without launching a new Solari Browser session.",
+    inputSchema: z.object({ seed: z.number().int().min(0).max(0xffff_ffff).default(42) }),
+  }, async ({ seed }) => visualResult(await arena.reset(seed)));
   server.registerTool("arena_look", {
     title: "Look at robot arena",
     description: "Read structured robot state and capture the current visual arena without advancing simulated time.",

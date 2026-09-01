@@ -181,17 +181,20 @@ export class App {
     });
     this.root.querySelectorAll<HTMLButtonElement>("[data-speed]").forEach((button) => {
       button.addEventListener("click", () => {
+        if (this.mode === "agent") return;
         this.simulationSpeed = Number(button.dataset.speed);
         this.root.querySelectorAll("[data-speed]").forEach((item) => item.classList.remove("segment__button--active"));
         button.classList.add("segment__button--active");
       });
     });
     this.requireInput("#strength").addEventListener("input", (event) => {
+      if (this.mode === "agent") return;
       const value = Number((event.currentTarget as HTMLInputElement).value);
       this.engine?.setActuatorStrength(value);
       this.requireElement("#strength-value").textContent = `${Math.round(value * 100)}%`;
     });
     this.requireInput("#friction").addEventListener("input", (event) => {
+      if (this.mode === "agent") return;
       const value = Number((event.currentTarget as HTMLInputElement).value);
       this.engine?.setGroundFriction(value);
       this.requireElement("#friction-value").textContent = value.toFixed(2);
@@ -448,6 +451,9 @@ export class App {
     this.requireElement("#mode-preview").classList.toggle("trust-mode--active", mode === "preview");
     this.requireElement("#mode-agent").classList.toggle("trust-mode--active", mode === "agent");
     this.requireElement("#mode-isolated").classList.toggle("trust-mode--active", mode === "isolated");
+    this.root.querySelectorAll<HTMLInputElement | HTMLButtonElement>("[data-speed], #strength, #friction").forEach((control) => {
+      control.disabled = mode === "agent";
+    });
     this.renderTrustState();
     if (mode === "agent") {
       this.powerEnabled = true;
@@ -917,7 +923,7 @@ export class App {
             <button id="mode-agent" class="trust-mode"><span>02</span><strong>AGENT TOOL TRIAL</strong><small>Observe/act tools · transcript</small></button>
             <button id="mode-isolated" class="trust-mode"><span>03</span><strong>ISOLATED EVALUATION</strong><small>Solari Sandbox · artifact on success</small></button>
           </div>
-          <a href="https://github.com/EXO-Robotics/solari-agent-arena#trust-boundary" target="_blank" rel="noreferrer">WHY THIS BOUNDARY ↗</a>
+          <a href="https://github.com/EXO-Robotics/solari-agent-arena#why-solari-matters" target="_blank" rel="noreferrer">WHY THIS BOUNDARY ↗</a>
         </section>
 
         <main class="workspace">

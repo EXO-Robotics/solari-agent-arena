@@ -25,3 +25,29 @@ Grok reported no Critical or High findings and seven legitimate Medium findings.
 - Rejected: Sandbox replay of bounded JSON is not unnecessary Solari theater; the product’s authority depends on a client-independent, pinned MuJoCo environment and kill-before-issuance evidence. The docs do not claim the JSON itself requires code isolation.
 - Rejected: retaining the original controller path is an explicit hiring-challenge requirement, not accidental scope growth.
 - Rejected: WebMCP `outputSchema` is optional and the official OpenAI example returns direct structured objects without one.
+
+## Round 2 — score 9/10
+
+Fresh Grok session `01a05cf2-e53a-7c90-9e61-dda8594988f4` reported: **“No legitimate Critical/High/Medium findings.”** It assessed architecture/claims confidence as high (about 0.9), confirmed Solari materially improves Robot-3D-Sim, and identified five Low issues.
+
+| Low finding | Decision | Resolution |
+|---|---|---|
+| Physics/rate controls remained writable after entering Agent Tool Trial | Accepted | Speed, strength, and friction controls are disabled for the full agent-mode session; event handlers also fail closed on programmatic input events. |
+| stdio MCP had no reset tool | Accepted | Added `arena_reset`, reusing the recording Browser session and returning a visual reset receipt. |
+| Trusted gait law is duplicated | Accepted as remaining Low | Kept deliberately for standalone offline runner independence; deterministic qualification detects outcome drift. |
+| “Why this boundary” linked to a missing heading | Accepted | Link now targets the real `#why-solari-matters` README anchor. |
+| Retained MCP proof stopped after one action | Accepted | Upgraded the real stdio MCP verifier to prove reset, exact 800 ms action timing, the full 21-action 5/5 zero-collision course, exact transcript, screenshot, rrweb, and receipt hashes. |
+
+Grok also listed narrow uncertainties about files excluded by the deliberately bounded review prompt. These were not findings; the broader local suite and retained release evidence cover those paths.
+
+## Round 3 — score 10/10
+
+Fresh Grok session `01a05cfc-db86-73f2-a741-a22a37201ce1` reviewed the revised implementation and retained proof. Final verdict:
+
+- **“No legitimate Critical/High/Medium findings.”**
+- Legitimate Critical: 0; High: 0; Medium: 0.
+- Architecture/claims confidence: high.
+- Solari materially improves Robot-3D-Sim: yes.
+- Overall score: **10/10**.
+
+Round 3 confirmed every Round 1 Medium is resolved and every Round 2 Low except the documented gait-duplication maintenance risk is resolved. It explicitly concluded that the remaining Low does not weaken the product or its claims.
