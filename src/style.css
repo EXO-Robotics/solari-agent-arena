@@ -365,6 +365,11 @@ input[type="range"]::-webkit-slider-thumb { appearance: none; width: 12px; heigh
 .start-screen__intro small { color: #89928b; font: 8px "SFMono-Regular", Consolas, monospace; letter-spacing: .17em; }
 .start-screen__intro h1 { margin: 13px 0 15px; max-width: 540px; font-size: clamp(40px, 4.4vw, 66px); line-height: .94; letter-spacing: -.065em; }
 .start-screen__intro p { max-width: 520px; margin: 0; color: #b6beb7; font-size: 14px; line-height: 1.55; }
+.connection-preflight { max-width: 560px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 7px 14px; margin-top: 14px; padding: 10px 12px; border: 1px solid rgba(170,255,30,.2); background: rgba(170,255,30,.045); }
+.connection-preflight b { color: var(--signal); font: 750 7px "SFMono-Regular", Consolas, monospace; letter-spacing: .12em; white-space: nowrap; }
+.connection-preflight span { grid-column: 1 / -1; grid-row: 2; color: #8f9991; font-size: 9px; line-height: 1.45; }
+.connection-preflight code { color: #d7ded8; font-family: "SFMono-Regular", Consolas, monospace; }
+.connection-preflight button { grid-column: 2; grid-row: 1; min-height: 32px; padding: 0 10px; border: 1px solid rgba(170,255,30,.35); background: transparent; color: var(--signal); font: 700 7px "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; cursor: pointer; }
 .course-list { grid-column: 2; grid-row: 2 / 5; align-self: center; border-top: 1px solid var(--line); }
 .course-row { width: 100%; min-height: 82px; display: grid; grid-template-columns: 102px 1fr 108px; align-items: center; gap: 16px; padding: 10px; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; cursor: pointer; transition: background .18s ease, padding .18s ease; }
 .course-row:hover, .course-row--active { padding-left: 17px; background: rgba(170,255,30,.055); }
@@ -421,6 +426,8 @@ input[type="range"]::-webkit-slider-thumb { appearance: none; width: 12px; heigh
   .start-screen__veil { background: rgba(6,8,7,.95); }
   .start-screen__intro { margin-top: 36px; }
   .start-screen__intro h1 { font-size: 46px; }
+  .connection-preflight { grid-template-columns: 1fr; }
+  .connection-preflight button { width: 100%; }
   .course-row { grid-template-columns: 82px 1fr; }
   .course-row__meta { grid-column: 2; flex-direction: row; align-items: center; justify-content: flex-start; margin-top: -7px; }
   .start-screen__actions { grid-template-columns: 1fr; }

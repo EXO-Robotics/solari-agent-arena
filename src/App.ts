@@ -176,7 +176,7 @@ export class App {
     this.requireElement("#guide-open").addEventListener("click", () => this.setGuideOpen(true));
     this.requireElement("#guide-close").addEventListener("click", () => this.setGuideOpen(false));
     this.requireElement("#guide-backdrop").addEventListener("click", () => this.setGuideOpen(false));
-    this.requireElement("#copy-mcp-command").addEventListener("click", () => void this.copyMcpCommand());
+    this.root.querySelectorAll<HTMLElement>("[data-copy-mcp-command]").forEach((button) => button.addEventListener("click", () => void this.copyMcpCommand(button)));
     this.requireInput("#course-import").addEventListener("change", (event) => void this.importCourse((event.currentTarget as HTMLInputElement).files?.[0]));
     this.requireElement("#mode-preview").addEventListener("click", () => this.setMode("preview"));
     this.requireElement("#mode-agent").addEventListener("click", () => this.setMode("agent"));
@@ -982,12 +982,11 @@ export class App {
     isolated.textContent = this.activeCourse.authoritative ? "RUN ISOLATED SCORE" : "OFFICIAL COURSE REQUIRED";
   }
 
-  private async copyMcpCommand(): Promise<void> {
-    const command = "codex mcp add solari-agent-arena -- node --env-file-if-exists=.env.local scripts/arena-mcp-server.mjs";
+  private async copyMcpCommand(button: HTMLElement): Promise<void> {
+    const command = "npm run setup:codex";
     await this.writeClipboard(command);
-    const button = this.requireElement("#copy-mcp-command");
     button.textContent = "COPIED";
-    window.setTimeout(() => { button.textContent = "COPY SETUP COMMAND"; }, 1_800);
+    window.setTimeout(() => { button.textContent = button.dataset.copyLabel ?? "COPY SETUP COMMAND"; }, 1_800);
   }
 
   private async copyMissionPrompt(closeAfterCopy: boolean): Promise<void> {
@@ -1235,10 +1234,10 @@ export class App {
         <div class="start-screen__veil"></div>
         <div class="start-screen__content">
           <header><span>SA / COURSE LIBRARY</span><button id="close-courses" aria-label="Close course library">×</button></header>
-          <div class="start-screen__intro"><small>AI ROBOT BENCHMARK</small><h1 id="start-title">Pick a course.<br/>Hand it to your agent.</h1><p>Copy the mission, paste it into Codex or your local model, and keep this tab open while it drives. The prompt includes tools, physics, limits, and the finish condition.</p></div>
+          <div class="start-screen__intro"><small>AI ROBOT BENCHMARK</small><h1 id="start-title">Pick a course.<br/>Hand it to your agent.</h1><p>Once the tools are connected, copy the mission and paste it into Codex or your local model. The agent launches its own recorded arena; a Safari tab is not shared with a new Codex task.</p><div class="connection-preflight"><b>FIRST RUN ON THIS COMPUTER?</b><span>From the cloned repository run the one-time connector, restart Codex, then every course is two clicks. Already see <code>arena_open</code>? Skip this.</span><button data-copy-mcp-command data-copy-label="COPY ONE-TIME CONNECT COMMAND">COPY ONE-TIME CONNECT COMMAND</button></div></div>
           <div id="course-list" class="course-list"></div>
           <div class="selected-course"><span>SELECTED</span><strong id="selected-course-name">${this.activeCourse.title}</strong><p id="selected-course-summary">${this.activeCourse.summary}</p><small id="selected-course-meta"></small></div>
-          <div class="start-screen__actions"><button id="start-copy" class="start-primary">COPY PROMPT & ENTER ARENA <span>↗</span></button><label class="import-course">IMPORT COURSE JSON<input id="course-import" type="file" accept="application/json,.json" /></label></div>
+          <div class="start-screen__actions"><button id="start-copy" class="start-primary">COPY MISSION & ENTER ARENA <span>↗</span></button><label class="import-course">IMPORT COURSE JSON<input id="course-import" type="file" accept="application/json,.json" /></label></div>
           <p id="course-import-status" class="course-import-status">Imported route manifests stay in this browser and cannot mint Solari scores. <a href="/course-template.json" download>Download the course template.</a></p>
           <textarea id="prompt-fallback" class="prompt-fallback" aria-label="Agent mission prompt"></textarea>
         </div>
@@ -1247,7 +1246,7 @@ export class App {
         <button id="guide-backdrop" class="guide-drawer__backdrop" aria-label="Close guide"></button>
         <aside>
           <header><div><small>AGENT FIELD MANUAL</small><h2>Tools & physics</h2></div><button id="guide-close" aria-label="Close guide">×</button></header>
-          <section class="tool-setup"><span>01 / START</span><h3>Where the tools are</h3><p><b>Codex browser:</b> open this page and use its page/site tools. <b>Local models:</b> connect the checked-in stdio MCP server. <b>Safari:</b> use browser automation or the MCP bridge.</p><code>codex mcp add solari-agent-arena -- node --env-file-if-exists=.env.local scripts/arena-mcp-server.mjs</code><button id="copy-mcp-command">COPY SETUP COMMAND</button></section>
+          <section class="tool-setup"><span>01 / CONNECT ONCE</span><h3>Where the tools are</h3><p><b>New Codex task:</b> it does not inherit your Safari tab. From this cloned repository, run the connector below and restart Codex once. It stores only absolute file paths; <code>SOLARI_API_KEY</code> stays in <code>.env.local</code>. <b>Codex Browser:</b> open this page inside the same task to use page tools. <b>Other local models:</b> connect the checked-in stdio MCP server.</p><code>npm run setup:codex</code><button data-copy-mcp-command data-copy-label="COPY SETUP COMMAND">COPY SETUP COMMAND</button></section>
           <section class="tool-list"><span>02 / TOOL LOOP</span><dl><div><dt>arena_open</dt><dd>Launch a recording Solari Browser session.</dd></div><div><dt>arena_reset</dt><dd>Start the selected route at a deterministic seed.</dd></div><div><dt>arena_look</dt><dd>Return a screenshot and structured state.</dd></div><div><dt>arena_observe</dt><dd>Read state without advancing simulation.</dd></div><div><dt>arena_act</dt><dd>Apply bounded drive, turn, and duration.</dd></div><div><dt>arena_transcript</dt><dd>Return the exact controller artifact.</dd></div><div><dt>arena_close</dt><dd>Retain recording and hash receipt.</dd></div></dl></section>
           <section class="physics-sheet"><span>03 / PHYSICS</span><h3>MuJoCo 3.12 · deterministic clock</h3><code>M(q)·v̇ + c(q,v) = τ + J(q)ᵀf</code><p><b>Physics step</b> Δt = 0.002 s<br/><b>Control/gait tick</b> Δt<sub>c</sub> = 0.010 s<br/><b>Planar command</b> v<sub>x</sub> = cos(ψ)d, v<sub>y</sub> = sin(ψ)d<br/><b>Energy</b> E += Σ|τᵢq̇ᵢ|Δt</p><small>Observing, screenshots, network delay, and model thinking consume zero simulated time.</small></section>
           <section><span>04 / AUTHORITY</span><h3>Preview here. Judge in Solari.</h3><p>The browser can be manipulated, so it never mints a score. Official transcripts are replayed and scored in fixed-step MuJoCo inside a fresh Solari Sandbox.</p></section>

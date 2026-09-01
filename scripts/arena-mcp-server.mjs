@@ -130,7 +130,10 @@ const visualResult = async (value) => {
 };
 
 function buildServer() {
-  const server = new McpServer({ name: "solari-agent-arena", version: "1.0.0" }, { capabilities: { tools: {} } });
+  const server = new McpServer({ name: "solari-agent-arena", version: "1.0.0" }, {
+    capabilities: { tools: {} },
+    instructions: "Robot benchmark tools. Start every new mission with arena_open({seed})—it launches the deployed arena, so no pre-opened Safari tab is needed. Then repeat arena_observe or arena_look → one bounded arena_act → inspect returned state until complete. Finish with arena_transcript and arena_close. Observing and thinking cost zero simulated time. Never invent tool results.",
+  });
   server.registerTool("arena_open", {
     title: "Open Solari Agent Arena",
     description: "Launch a recording-enabled Solari Browser, open the robot benchmark, reset it, and return the first observation plus screenshot.",

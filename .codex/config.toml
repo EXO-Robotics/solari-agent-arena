@@ -1,0 +1,8 @@
+[mcp_servers.solari-agent-arena]
+command = "node"
+args = ["--env-file-if-exists=.env.local", "scripts/arena-mcp-server.mjs"]
+cwd = "."
+enabled = true
+required = false
+startup_timeout_sec = 120
+tool_timeout_sec = 180

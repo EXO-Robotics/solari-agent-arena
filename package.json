@@ -20,6 +20,7 @@
     "verify:solari-browser": "node --env-file-if-exists=.env.local scripts/verify-deployment.mjs",
     "verify:agent-benchmark": "node --env-file-if-exists=.env.local scripts/verify-agent-benchmark.mjs",
     "verify:mcp-bridge": "node --env-file-if-exists=.env.local scripts/verify-mcp-bridge.mjs",
+    "setup:codex": "node scripts/setup-codex-mcp.mjs",
     "agent:mcp": "node --env-file-if-exists=.env.local scripts/arena-mcp-server.mjs"
   },
   "dependencies": {

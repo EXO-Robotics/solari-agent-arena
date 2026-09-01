@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "solari.arena.codex-connection-proof.v1",
+  "completedAt": "2026-09-01T13:57:34Z",
+  "codexVersion": "0.144.3",
+  "model": "gpt-5.6-luna",
+  "sessionIdHash": "b4b5f877771dda54c1b037e79c0e6d29a5dc61cd8f802d0d682747964fb1760f",
+  "freshEphemeralTask": true,
+  "sandbox": "read-only",
+  "shellUseAllowed": false,
+  "preopenedArenaRequired": false,
+  "toolsObserved": [
+    "solari-agent-arena/arena_open",
+    "solari-agent-arena/arena_observe",
+    "solari-agent-arena/arena_close"
+  ],
+  "calls": [
+    { "tool": "arena_open", "input": { "seed": 42 }, "completed": true },
+    { "tool": "arena_observe", "input": {}, "completed": true },
+    { "tool": "arena_close", "input": { "retainEvidence": false }, "completed": true }
+  ],
+  "courseActionsAttempted": 0,
+  "passed": true
+}

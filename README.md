@@ -8,12 +8,14 @@ Solari Agent Arena turns [Robot-3D-Sim](https://github.com/EXO-Robotics/Robot-3D
 
 The browser trial is deliberately **non-authoritative**. The only authoritative score comes from replaying the validated action transcript with fixed-step MuJoCo inside a fresh **Solari Sandbox**, then binding the result, telemetry, replay state, course, seed, and transcript to SHA-256 evidence.
 
-## The product in two clicks
+## The product in two clicks — after one connection
+
+A pasted prompt cannot attach tools to an already-running Codex task. On the first use of a cloned checkout, save `SOLARI_API_KEY` in `.env.local`, run `npm run setup:codex`, and restart Codex. The installer stores only absolute paths in Codex MCP configuration; it does not copy the key. Codex desktop, CLI, and IDE share that host configuration. This follows the [official Codex MCP setup model](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
 
 1. Open the arena and choose an official, practice, or locally imported course.
-2. Click **Copy prompt & enter arena**, paste the mission into Codex or a local model, and let it use the exposed tools.
+2. Click **Copy mission & enter arena**, paste the mission into a connected Codex task or local model, and let it use the exposed tools.
 
-The copied mission includes tool discovery, every tool’s role, course coordinates, action limits, the MuJoCo equations/timing, and the finish condition. The simulation clock is frozen while the model looks or thinks. For an official course, `RUN ISOLATED SCORE` submits only the transcript and seed; the external agent itself is **not** claimed to run inside Solari.
+The copied mission starts with a connection preflight and does not pretend that a Safari tab is shared with a new Codex task. It includes an exact recovery instruction when tools are absent, every tool’s role, course coordinates, action limits, the MuJoCo equations/timing, and the finish condition. The simulation clock is frozen while the model looks or thinks. For an official course, `RUN ISOLATED SCORE` submits only the transcript and seed; the external agent itself is **not** claimed to run inside Solari.
 
 A fresh Solari Sandbox replays the transcript through the frozen deterministic gait and MuJoCo model, scores it, emits `solari.arena.agent-run.v1`, and is killed before authority is issued. The browser verifies artifact hashes and replays recorded `qpos`/`qvel`; it never rescores the run.
 
@@ -76,21 +78,19 @@ Open the [live agent arena](https://solari-agent-arena.vercel.app/?agent=1) in C
 | `arena_act(drive, turn, durationMs)` | Advance one bounded action and return the resulting observation. |
 | `arena_transcript()` | Return the exact bounded controller artifact for isolated scoring. |
 
-Codex can discover site tools from an open page without installing a separate MCP server. Current OpenAI setup/availability details are in the [official site-tools documentation](https://learn.chatgpt.com/docs/webmcp).
+Codex can discover site tools only when the page is opened inside the browser surface attached to that same task. A Safari tab or a page opened in another task is not a tool connection. Current OpenAI setup/availability details are in the [official site-tools documentation](https://learn.chatgpt.com/docs/webmcp).
 
 ### Local models or Codex CLI: standard MCP bridge
 
 The checked-in stdio server launches a recording-enabled Solari Browser and exposes `arena_open`, `arena_reset`, `arena_observe`, `arena_look`, `arena_act`, `arena_transcript`, and `arena_close`. `arena_reset` reuses the active Browser session, while `arena_look` and every action return both structured state and a PNG view. Closing can retain the transcript, final screenshot, rrweb replay, and hash receipt under `evidence/agent-sessions/`.
 
-For Codex, add it from the repository root:
+For Codex, save the key in `.env.local`, then run the idempotent connector from the repository root:
 
 ```bash
-codex mcp add solari-agent-arena -- \
-  node --env-file-if-exists=/absolute/path/to/solari-agent-arena/.env.local \
-  /absolute/path/to/solari-agent-arena/scripts/arena-mcp-server.mjs
+npm run setup:codex
 ```
 
-Then restart Codex and inspect `/mcp`. Codex’s official stdio/config options are documented in [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp). Any local model host that supports stdio MCP can use the same Node command.
+Then restart Codex and inspect `/mcp`. The repository also contains a project-scoped `.codex/config.toml` for trusted tasks opened directly on the checkout. Codex’s official stdio/config options are documented in [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp?surface=cli). Any local model host that supports stdio MCP can use the Node command shown by `codex mcp get solari-agent-arena --json` after setup.
 
 The MCP bridge reads `SOLARI_API_KEY` only in its local Node process. The visited page never receives it. `arena_open` is origin-locked to `ARENA_URL` (production by default); set that variable deliberately to use a local or alternate deployment.
 
@@ -168,6 +168,7 @@ Useful commands:
 ```bash
 npm run qualify:local
 npm run qualify:solari-agent
+npm run setup:codex
 npm run agent:mcp
 npm run verify:mcp-bridge
 npm run verify:agent-benchmark

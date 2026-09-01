@@ -25,5 +25,9 @@ describe("course library", () => {
     expect(prompt).toContain("Δt = 0.002s");
     expect(prompt).toContain("120 actions and 60s");
     expect(prompt).toContain("east-beacon");
+    expect(prompt).toContain("This pasted text does not create tools");
+    expect(prompt).toContain("npm run setup:codex");
+    expect(prompt).toContain("a Safari tab is not shared");
+    expect(prompt).toContain("ARENA_TOOLS_MISSING");
   });
 });
