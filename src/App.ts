@@ -9,6 +9,10 @@ import { TelemetryBuffer } from "./telemetry/TelemetryBuffer";
 import { validateControllerSource } from "./control/validation";
 import type { AuthoritativeRun } from "./evidence/contract";
 import { verifyArtifactIntegrity } from "./evidence/verify";
+import { AgentTrial } from "./agent/AgentTrial";
+import { AGENT_COURSE, AGENT_TOOL_VERSION, type AgentObservation, type AgentTranscript } from "./agent/contract";
+import { registerAgentSiteTools } from "./agent/webmcp";
+import { agentGaitTargets } from "./agent/gait";
 
 const CONTROL_DT = 0.01;
 const TELEMETRY_DT = 0.04;
@@ -29,12 +33,20 @@ export class App {
   private powerEnabled = true;
   private animationId = 0;
   private readonly heldControls = new Set<string>();
-  private mode: "preview" | "isolated" = "preview";
+  private mode: "preview" | "agent" | "isolated" = "preview";
   private evaluationState: "empty" | "pending" | "integrityChecked" | "failed" = "empty";
   private authoritativeRun: AuthoritativeRun | null = null;
   private replayIndex = 0;
   private replayPlaying = false;
   private replayElapsed = 0;
+  private readonly agentTrial = new AgentTrial();
+  private agentCommand: {
+    drive: number;
+    turn: number;
+    remainingSeconds: number;
+    resolve: (observation: AgentObservation) => void;
+    reject: (error: Error) => void;
+  } | null = null;
 
   constructor(private readonly root: HTMLElement) {
     this.root.innerHTML = this.template();
@@ -47,6 +59,7 @@ export class App {
       this.engine = await MujocoEngine.create(PHYSICS_MODEL_XML);
       this.setBoot("Binding visual model", 62);
       this.scene = await RobotScene.create(this.requireElement("#viewport"), this.engine);
+      this.scene.configureAgentCourse(AGENT_COURSE.checkpoints);
       this.controller.compile(BASELINE_CONTROLLER);
       this.session.ready();
       this.setBoot("Sensors online", 100);
@@ -54,6 +67,9 @@ export class App {
       window.setTimeout(() => this.requireElement("#boot").classList.add("boot--hidden"), 420);
       this.previousFrameTime = performance.now();
       await this.loadEvidenceFromUrl();
+      this.installAgentToolApi();
+      if (new URLSearchParams(location.search).get("agent") === "1") this.setMode("agent");
+      await this.installAgentSiteTools();
       this.animationId = requestAnimationFrame((time) => this.animate(time));
     } catch (error) {
       this.fail(`Simulator initialization failed: ${String(error)}`);
@@ -65,6 +81,7 @@ export class App {
     this.controller.dispose();
     this.scene?.dispose();
     this.engine?.dispose();
+    delete window.solariAgentArena;
   }
 
   private animate(now: number): void {
@@ -83,7 +100,9 @@ export class App {
       this.animationId = requestAnimationFrame((time) => this.animate(time));
       return;
     }
-    const active = this.session.phase === "running" || (!this.powerEnabled && this.session.phase === "ready");
+    const active = this.mode === "agent"
+      ? this.session.phase === "running" && this.agentCommand !== null
+      : this.session.phase === "running" || (!this.powerEnabled && this.session.phase === "ready");
     if (active) this.accumulator = Math.min(0.05, this.accumulator + wallDt * this.simulationSpeed);
 
     let steps = 0;
@@ -92,8 +111,12 @@ export class App {
       this.controlAccumulator += engine.timestep;
       this.telemetryAccumulator += engine.timestep;
       if (this.controlAccumulator >= CONTROL_DT) {
-        this.controller.step(this.copyFrame(frame), CONTROL_DT);
-        engine.applyTargets(this.controller.targets);
+        if (this.mode === "agent") {
+          engine.applyTargets(agentGaitTargets(frame));
+        } else {
+          this.controller.step(this.copyFrame(frame), CONTROL_DT);
+          engine.applyTargets(this.controller.targets);
+        }
         const command = this.fieldCommand();
         engine.setFieldDrive(command.drive, command.turn);
         this.controlAccumulator %= CONTROL_DT;
@@ -108,6 +131,10 @@ export class App {
         this.captureTelemetry(updated);
         this.telemetryAccumulator %= TELEMETRY_DT;
       }
+      if (this.mode === "agent") {
+        this.agentTrial.update(updated, engine.worldCollision, engine.fallen);
+        this.advanceAgentCommand(engine.timestep, updated);
+      }
       this.accumulator -= engine.timestep;
       steps += 1;
     }
@@ -117,6 +144,7 @@ export class App {
     if (now - this.lastUiUpdate > 80) {
       this.renderTelemetry(frame);
       this.renderRunState();
+      if (this.mode === "agent") this.renderAgentPanel(frame);
       this.lastUiUpdate = now;
     }
     this.animationId = requestAnimationFrame((time) => this.animate(time));
@@ -124,6 +152,7 @@ export class App {
 
   private bindStaticUi(): void {
     this.requireElement("#mode-preview").addEventListener("click", () => this.setMode("preview"));
+    this.requireElement("#mode-agent").addEventListener("click", () => this.setMode("agent"));
     this.requireElement("#mode-isolated").addEventListener("click", () => this.setMode("isolated"));
     this.requireElement("#run-button").addEventListener("click", () => this.toggleRun());
     this.requireElement("#reset-button").addEventListener("click", () => this.reset());
@@ -183,6 +212,22 @@ export class App {
       this.setReplayState("paused");
     });
     this.requireElement("#download-evidence").addEventListener("click", () => this.downloadEvidence());
+    this.root.querySelectorAll<HTMLButtonElement>("[data-agent-preset]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const presets: Record<string, { drive: number; turn: number; durationMs: number }> = {
+          forward: { drive: 1.2, turn: 0, durationMs: 800 },
+          left: { drive: 0.55, turn: 1, durationMs: 650 },
+          right: { drive: 0.55, turn: -1, durationMs: 650 },
+          reverse: { drive: -0.7, turn: 0, durationMs: 600 },
+          wait: { drive: 0, turn: 0, durationMs: 400 },
+        };
+        const input = presets[button.dataset.agentPreset ?? ""];
+        if (input) void this.actAgent(input).catch((error) => this.showAgentStatus(String(error), true));
+      });
+    });
+    this.requireElement("#agent-reset").addEventListener("click", () => this.resetAgentTrial(Number(this.requireInput("#agent-seed").value)));
+    this.requireElement("#agent-copy").addEventListener("click", () => void this.copyAgentTranscript());
+    this.requireElement("#agent-isolated").addEventListener("click", () => void this.runIsolatedAgentEvaluation());
     this.requireElement("#restore-button").addEventListener("click", () => {
       (this.requireElement("#controller-source") as HTMLTextAreaElement).value = BASELINE_CONTROLLER;
       this.controller.compile(BASELINE_CONTROLLER);
@@ -225,11 +270,11 @@ export class App {
     }
   }
 
-  private reset(): void {
+  private reset(seed?: number): void {
     if (!this.engine) return;
     this.countdownToken += 1;
     this.requireElement("#countdown").classList.remove("countdown--visible");
-    this.engine.reset();
+    this.engine.reset(seed);
     this.engine.setActuationEnabled(this.powerEnabled);
     this.telemetry.clear();
     this.accumulator = 0;
@@ -289,6 +334,11 @@ export class App {
   }
 
   private fieldCommand(): { drive: number; turn: number } {
+    if (this.mode === "agent") {
+      return this.agentCommand
+        ? { drive: this.agentCommand.drive, turn: this.agentCommand.turn }
+        : { drive: 0, turn: 0 };
+    }
     if (this.heldControls.size === 0) {
       return { drive: this.controller.drive, turn: this.controller.turn };
     }
@@ -336,6 +386,20 @@ export class App {
   }
 
   private renderRunState(): void {
+    if (this.mode === "agent" && this.engine) {
+      const observation = this.agentTrial.observation(this.engine.sensors());
+      const labels: Record<typeof observation.phase, string> = {
+        idle: "AGENT IDLE",
+        running: this.agentCommand ? "TOOL ACTION" : "AWAITING TOOL",
+        complete: "COURSE COMPLETE",
+        fallen: "ROBOT FALLEN",
+        time_limit: "TIME LIMIT",
+      };
+      const dot = observation.phase === "complete" ? "ready" : observation.phase === "running" ? "running" : observation.phase === "idle" ? "paused" : "fallen";
+      this.requireElement("#phase-label").textContent = labels[observation.phase];
+      this.requireElement("#phase-dot").className = `status-dot status-dot--${dot}`;
+      return;
+    }
     const phase = this.session.phase;
     const runButton = this.requireElement("#run-button");
     const labels: Partial<Record<typeof phase, string>> = {
@@ -367,23 +431,33 @@ export class App {
   private selectPanel(panel: string): void {
     this.root.querySelectorAll("[data-panel]").forEach((item) => item.classList.toggle("panel-tab--active", (item as HTMLElement).dataset.panel === panel));
     this.requireElement("#lab-panel").classList.toggle("inspector-panel--active", panel === "lab");
+    this.requireElement("#agent-panel").classList.toggle("inspector-panel--active", panel === "agent");
     this.requireElement("#code-panel").classList.toggle("inspector-panel--active", panel === "code");
     this.requireElement("#evidence-panel").classList.toggle("inspector-panel--active", panel === "evidence");
   }
 
-  private setMode(mode: "preview" | "isolated"): void {
+  private setMode(mode: "preview" | "agent" | "isolated"): void {
     this.mode = mode;
     this.root.querySelector(".app-shell")?.classList.toggle("app-shell--isolated", mode === "isolated");
+    this.root.querySelector(".app-shell")?.classList.toggle("app-shell--agent", mode === "agent");
     this.requireElement("#mode-preview").classList.toggle("trust-mode--active", mode === "preview");
+    this.requireElement("#mode-agent").classList.toggle("trust-mode--active", mode === "agent");
     this.requireElement("#mode-isolated").classList.toggle("trust-mode--active", mode === "isolated");
     this.renderTrustState();
-    if (mode === "isolated") {
+    if (mode === "agent") {
+      this.setTelemetryPresentation("live");
+      this.selectPanel("agent");
+      this.scene?.setAgentCourseProgress(true, 0);
+      this.resetAgentTrial(Number(this.requireInput("#agent-seed").value));
+    } else if (mode === "isolated") {
       if (this.session.phase === "running") this.session.pause();
       this.setTelemetryPresentation("recorded");
+      this.scene?.setAgentCourseProgress(false, 0);
       this.selectPanel(this.authoritativeRun ? "evidence" : "code");
     } else {
       this.replayPlaying = false;
       this.setTelemetryPresentation("live");
+      this.scene?.setAgentCourseProgress(false, 0);
       this.selectPanel("lab");
       this.reset();
     }
@@ -397,6 +471,11 @@ export class App {
     if (this.mode === "preview") {
       trust.textContent = "NON-ISOLATED / NON-AUTHORITATIVE";
       viewport.textContent = "LOCAL PREVIEW";
+      return;
+    }
+    if (this.mode === "agent") {
+      trust.textContent = "AGENT TOOL TRIAL / TRANSCRIPT ONLY";
+      viewport.textContent = "AGENT-CONTROLLED BROWSER TRIAL";
       return;
     }
     const states = {
@@ -583,6 +662,149 @@ export class App {
     this.requireElement("#pitch-chart-mode").textContent = recorded ? "RECORDED" : "RAD";
   }
 
+  private installAgentToolApi(): void {
+    window.solariAgentArena = Object.freeze({
+      version: AGENT_TOOL_VERSION,
+      reset: (seed = 42) => this.resetAgentFromTool(seed),
+      observe: () => this.observeAgent(),
+      act: (input) => this.actAgent(input),
+      transcript: () => this.agentTrial.transcript(),
+    });
+  }
+
+  private async installAgentSiteTools(): Promise<void> {
+    try {
+      const installed = await registerAgentSiteTools({
+        reset: (seed) => this.resetAgentFromTool(seed),
+        observe: () => this.observeAgent(),
+        act: (input) => this.actAgent(input),
+        transcript: () => this.agentTrial.transcript(),
+      });
+      this.requireElement("#agent-interface").textContent = installed
+        ? "CODEX SITE TOOLS READY · WINDOW API READY"
+        : "WINDOW API READY · SITE TOOLS REQUIRE CODEX BROWSER";
+    } catch (error) {
+      this.requireElement("#agent-interface").textContent = "WINDOW API READY · SITE TOOL REGISTRATION FAILED";
+      console.warn("Site tool registration failed", error);
+    }
+  }
+
+  private resetAgentFromTool(seed: number): AgentObservation {
+    this.requireInput("#agent-seed").value = String(seed);
+    if (this.mode !== "agent") {
+      this.setMode("agent");
+      return this.observeAgent();
+    }
+    return this.resetAgentTrial(seed);
+  }
+
+  private resetAgentTrial(seed: number): AgentObservation {
+    if (!this.engine) throw new Error("MuJoCo is not ready.");
+    this.agentCommand?.reject(new Error("Agent trial reset."));
+    this.agentCommand = null;
+    this.reset(seed);
+    const frame = this.engine.sensors();
+    this.session.start(this.engine.data.time, frame);
+    this.agentTrial.reset(seed, this.engine.data.time);
+    this.scene?.setAgentCourseProgress(true, 0);
+    const observation = this.agentTrial.observation(frame);
+    this.renderAgentPanel(frame);
+    this.showAgentStatus("RESET receipt · awaiting observe/act tool call", false);
+    return observation;
+  }
+
+  private observeAgent(): AgentObservation {
+    if (!this.engine) throw new Error("MuJoCo is not ready.");
+    if (this.mode !== "agent") throw new Error("Open Agent Tool Trial before observing.");
+    return this.agentTrial.observation(this.engine.sensors());
+  }
+
+  private actAgent(input: { drive: number; turn: number; durationMs: number }): Promise<AgentObservation> {
+    if (!this.engine) return Promise.reject(new Error("MuJoCo is not ready."));
+    if (this.mode !== "agent") this.setMode("agent");
+    if (this.agentCommand) return Promise.reject(new Error("Wait for the active tool action to finish."));
+    const action = this.agentTrial.recordAction(input);
+    this.showAgentStatus(`ACT ${String(action.sequence).padStart(3, "0")} · drive ${action.drive.toFixed(2)} · turn ${action.turn.toFixed(2)} · ${action.durationMs} ms`, false);
+    return new Promise<AgentObservation>((resolve, reject) => {
+      this.agentCommand = {
+        drive: action.drive,
+        turn: action.turn,
+        remainingSeconds: action.durationMs / 1000,
+        resolve,
+        reject,
+      };
+    });
+  }
+
+  private advanceAgentCommand(timestep: number, frame: SensorFrame): void {
+    const command = this.agentCommand;
+    if (!command) return;
+    command.remainingSeconds -= timestep;
+    const observation = this.agentTrial.observation(frame);
+    if (command.remainingSeconds <= 1e-9 || observation.phase !== "running") {
+      this.agentCommand = null;
+      this.renderAgentPanel(frame);
+      command.resolve(observation);
+    }
+  }
+
+  private renderAgentPanel(frame: SensorFrame): void {
+    const observation = this.agentTrial.observation(frame);
+    const values: Record<string, string> = {
+      "#agent-phase": observation.phase.toUpperCase().replace("_", " "),
+      "#agent-checkpoints": `${observation.checkpoints.reached} / ${observation.checkpoints.total}`,
+      "#agent-next": observation.checkpoints.nextId ?? "FINISH",
+      "#agent-position": `${observation.position.x.toFixed(2)}, ${observation.position.y.toFixed(2)}`,
+      "#agent-yaw": observation.yawRadians.toFixed(3),
+      "#agent-time": `${observation.simulatedTimeSeconds.toFixed(2)} S`,
+      "#agent-collisions": String(observation.collisions),
+      "#agent-actions": `${observation.actionsUsed} / ${observation.actionBudget}`,
+    };
+    for (const [selector, value] of Object.entries(values)) this.requireElement(selector).textContent = value;
+    this.scene?.setAgentCourseProgress(this.mode === "agent", observation.checkpoints.reached);
+    const recent = this.agentTrial.transcript().actions.slice(-5).map((action) => `#${action.sequence} d=${action.drive.toFixed(2)} t=${action.turn.toFixed(2)} ${action.durationMs}ms`);
+    this.requireElement("#agent-transcript").textContent = recent.length ? recent.join("\n") : "No actions recorded.";
+  }
+
+  private showAgentStatus(message: string, error: boolean): void {
+    const status = this.requireElement("#agent-status");
+    status.textContent = message;
+    status.classList.toggle("console--error", error);
+  }
+
+  private async copyAgentTranscript(): Promise<void> {
+    const transcript: AgentTranscript = this.agentTrial.transcript();
+    await navigator.clipboard.writeText(JSON.stringify(transcript, null, 2));
+    this.showAgentStatus("Transcript copied. Submit it for isolated deterministic scoring.", false);
+  }
+
+  private async runIsolatedAgentEvaluation(): Promise<void> {
+    const button = this.requireElement("#agent-isolated") as HTMLButtonElement;
+    const accessCode = this.requireInput("#agent-access-code").value;
+    button.disabled = true;
+    this.showAgentStatus("Submitting the bounded transcript for isolated deterministic replay…", false);
+    this.clearEvidence();
+    this.evaluationState = "pending";
+    try {
+      const response = await fetch("/api/agent-evaluate", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(accessCode ? { authorization: `Bearer ${accessCode}` } : {}) },
+        body: JSON.stringify({ transcript: this.agentTrial.transcript(), agentLabel: "browser-tool-agent" }),
+      });
+      const text = await response.text();
+      let body: Record<string, unknown>;
+      try { body = JSON.parse(text) as Record<string, unknown>; }
+      catch { throw new Error("Isolated scoring requires the server runtime. Start with `vercel dev`, not Vite alone."); }
+      if (!response.ok) throw new Error(String(body.error ?? `Agent evaluation failed (${response.status}).`));
+      await this.loadEvidence(body);
+      this.setMode("isolated");
+      this.showEvaluationStatus("Agent transcript scored in Solari. Artifact integrity checked and ready to replay.", false);
+    } catch (error) {
+      this.evaluationState = "failed";
+      this.showAgentStatus(String(error instanceof Error ? error.message : error), true);
+    } finally { button.disabled = false; }
+  }
+
   private renderEvidence(run: AuthoritativeRun): void {
     const values: Record<string, string> = {
       "#evidence-run-id": run.runId,
@@ -649,7 +871,7 @@ export class App {
       <div class="app-shell">
         <header class="topbar">
           <div class="brand"><span class="brand__mark">SA</span><span>SOLARI AGENT ARENA</span></div>
-          <div class="event-title"><span>ROBOT CONTROLLER EVALUATION</span><strong>PREVIEW FAST / JUDGE IN ISOLATION</strong></div>
+          <div class="event-title"><span>AI AGENT OBSTACLE BENCHMARK</span><strong>OBSERVE / ACT / VERIFY</strong></div>
           <div class="system-state"><span id="phase-dot" class="status-dot status-dot--loading"></span><span id="phase-label" data-testid="phase-label">LOADING</span><small>MUJOCO 3.12 / WASM</small></div>
         </header>
 
@@ -657,7 +879,8 @@ export class App {
           <div class="trust-switch__copy"><small>EXECUTION BOUNDARY</small><strong id="trust-status">NON-ISOLATED / NON-AUTHORITATIVE</strong></div>
           <div class="trust-switch__modes">
             <button id="mode-preview" class="trust-mode trust-mode--active"><span>01</span><strong>LOCAL PREVIEW</strong><small>Browser Worker · fast feedback</small></button>
-            <button id="mode-isolated" class="trust-mode"><span>02</span><strong>ISOLATED EVALUATION</strong><small>Solari Sandbox · artifact on success</small></button>
+            <button id="mode-agent" class="trust-mode"><span>02</span><strong>AGENT TOOL TRIAL</strong><small>Observe/act tools · transcript</small></button>
+            <button id="mode-isolated" class="trust-mode"><span>03</span><strong>ISOLATED EVALUATION</strong><small>Solari Sandbox · artifact on success</small></button>
           </div>
           <a href="https://github.com/EXO-Robotics/solari-agent-arena#trust-boundary" target="_blank" rel="noreferrer">WHY THIS BOUNDARY ↗</a>
         </section>
@@ -670,7 +893,7 @@ export class App {
               <div class="model-tags"><span id="model-mass">— KG</span><span id="model-dof">— DOF</span><span id="model-actuators">— ACTUATORS</span></div>
             </div>
             <div class="viewport__hud viewport__hud--bottom">
-              <div class="field-position"><span>WORLD X <b id="coord-x">0.0</b></span><span>WORLD Y <b id="coord-y">0.0</b></span><span class="preview-only">W/A/S/D TO STEER</span><span class="isolated-only">RECORDED MUJOCO STATE / NO BROWSER SCORING</span></div>
+              <div class="field-position"><span>WORLD X <b id="coord-x">0.0</b></span><span>WORLD Y <b id="coord-y">0.0</b></span><span class="preview-only">W/A/S/D TO STEER</span><span class="agent-only">MCP / BROWSER TOOL CONTROL · TRANSCRIPT ONLY</span><span class="isolated-only">RECORDED MUJOCO STATE / NO BROWSER SCORING</span></div>
               <div class="field-bearing"><i></i><span>NAV GRID / 5 M</span></div>
             </div>
             <div class="toolrail" aria-label="View controls">
@@ -698,6 +921,7 @@ export class App {
           <aside class="inspector">
             <nav class="panel-tabs" aria-label="Inspector panels">
               <button class="panel-tab panel-tab--active" data-panel="lab">ROBOT LAB</button>
+              <button class="panel-tab" data-panel="agent">AGENT TOOLS</button>
               <button class="panel-tab" data-panel="code">CONTROLLER</button>
               <button class="panel-tab" data-panel="evidence">EVIDENCE</button>
             </nav>
@@ -724,6 +948,32 @@ export class App {
                 <div class="drive"><span>ACTUATOR LOAD</span><i id="drive-fill"></i></div>
               </section>
             </div>
+            <div id="agent-panel" class="inspector-panel inspector-panel--agent">
+              <div class="mode-note"><span>NON-AUTHORITATIVE TOOL TRIAL</span><p>An external model observes this page and emits bounded actions. Only the resulting transcript can be judged in Solari.</p></div>
+              <dl class="agent-grid">
+                <div><dt>PHASE</dt><dd id="agent-phase" data-testid="agent-phase">IDLE</dd></div>
+                <div><dt>CHECKPOINTS</dt><dd id="agent-checkpoints" data-testid="agent-checkpoints">0 / 5</dd></div>
+                <div><dt>NEXT</dt><dd id="agent-next" data-testid="agent-next">SLALOM ENTRY</dd></div>
+                <div><dt>POSITION X,Y</dt><dd id="agent-position" data-testid="agent-position">0.00, 0.00</dd></div>
+                <div><dt>YAW / RAD</dt><dd id="agent-yaw" data-testid="agent-yaw">0.000</dd></div>
+                <div><dt>SIM TIME</dt><dd id="agent-time" data-testid="agent-time">0.00 S</dd></div>
+                <div><dt>COLLISIONS</dt><dd id="agent-collisions" data-testid="agent-collisions">0</dd></div>
+                <div><dt>ACTIONS</dt><dd id="agent-actions" data-testid="agent-actions">0 / 120</dd></div>
+              </dl>
+              <div class="agent-actions" aria-label="Agent tool actions">
+                <button data-agent-preset="left" data-testid="agent-turn-left">ARC LEFT</button>
+                <button data-agent-preset="forward" data-testid="agent-forward">FORWARD</button>
+                <button data-agent-preset="right" data-testid="agent-turn-right">ARC RIGHT</button>
+                <button data-agent-preset="reverse">REVERSE</button>
+                <button data-agent-preset="wait">WAIT</button>
+              </div>
+              <pre id="agent-transcript" class="agent-transcript">No actions recorded.</pre>
+              <div class="evaluation-input"><label for="agent-seed">SEED</label><input id="agent-seed" type="number" min="0" max="4294967295" value="42" /><span>60 S / 120 ACTIONS</span></div>
+              <div id="agent-interface" class="agent-interface" data-testid="agent-interface">INITIALIZING TOOL INTERFACES…</div>
+              <div class="evaluation-input"><label for="agent-access-code">ACCESS</label><input id="agent-access-code" type="password" autocomplete="off" placeholder="demo code" /><span>SERVER ADMISSION ONLY</span></div>
+              <div id="agent-status" class="console evaluation-status" data-testid="agent-status">Open with ?agent=1 or call window.solariAgentArena.</div>
+              <div class="agent-footer"><button id="agent-reset" class="button button--quiet">RESET TRIAL</button><button id="agent-copy" class="button button--quiet">COPY TRANSCRIPT</button><button id="agent-isolated" class="button button--accent">RUN ISOLATED SCORE</button></div>
+            </div>
             <div id="code-panel" class="inspector-panel inspector-panel--code">
               <div class="editor-head"><span>control.js</span><small>PREVIEW + EVALUATION INPUT</small></div>
               <textarea id="controller-source" class="code-editor" spellcheck="false" aria-label="JavaScript robot controller">${BASELINE_CONTROLLER}</textarea>
@@ -744,7 +994,7 @@ export class App {
                 <div><dt>COLLISIONS</dt><dd id="evidence-collisions" data-testid="collisions">—</dd></div>
                 <div><dt>SEED</dt><dd id="evidence-seed" data-testid="seed">—</dd></div>
               </dl>
-              <div class="hash-stack"><span>CONTROLLER SHA-256</span><code id="evidence-controller-hash" data-testid="controller-hash">—</code><span>TELEMETRY SHA-256</span><code id="evidence-telemetry-hash" data-testid="telemetry-hash">—</code><span>RESULT SHA-256</span><code id="evidence-result-hash" data-testid="result-hash">—</code></div>
+              <div class="hash-stack"><span>CONTROLLER / TRANSCRIPT SHA-256</span><code id="evidence-controller-hash" data-testid="controller-hash">—</code><span>TELEMETRY SHA-256</span><code id="evidence-telemetry-hash" data-testid="telemetry-hash">—</code><span>RESULT SHA-256</span><code id="evidence-result-hash" data-testid="result-hash">—</code></div>
               <div class="replay-control"><div><span id="replay-state" data-testid="replay-state" data-state="empty">EMPTY</span><small>RECORDED STATE</small></div><input id="replay-scrubber" type="range" min="0" max="0" value="0" /><button id="replay-button" class="button button--accent">PLAY INTEGRITY-CHECKED REPLAY</button><button id="download-evidence" class="button button--quiet">DOWNLOAD ARTIFACT</button></div>
             </div>
           </aside>

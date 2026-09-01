@@ -79,12 +79,22 @@ export class MujocoEngine {
     return engine;
   }
 
-  reset(): void {
+  reset(seed?: number): void {
     this.module.mj_resetData(this.model, this.data);
     const qpos = this.data.qpos as Float64Array;
     for (const [name, value] of Object.entries(INITIAL_POSE)) {
       const address = this.jointAddresses.get(name)?.qpos;
       if (address !== undefined) qpos[address] = value;
+    }
+    if (seed !== undefined) {
+      let state = seed >>> 0;
+      state = (state + 0x6d2b79f5) >>> 0;
+      let mixed = state;
+      mixed = Math.imul(mixed ^ (mixed >>> 15), mixed | 1);
+      mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61);
+      const random = ((mixed ^ (mixed >>> 14)) >>> 0) / 0x1_0000_0000;
+      const yawAddress = this.jointAddresses.get("root_yaw")?.qpos;
+      if (yawAddress !== undefined) qpos[yawAddress] = (random - 0.5) * 0.04;
     }
     this.energyJoules = 0;
     this.lastPosition = [0, 0];
@@ -226,6 +236,31 @@ export class MujocoEngine {
   get fallen(): boolean {
     const frame = this.sensors();
     return frame.height < 0.5 || Math.abs(frame.imu.pitch) > 0.96 || Math.abs(frame.imu.roll) > 0.96;
+  }
+
+  get worldCollision(): boolean {
+    const floorId = this.module.mj_name2id(this.model, this.module.mjtObj.mjOBJ_GEOM.value, "field_floor");
+    const bodyIds = this.model.geom_bodyid as Int32Array;
+    const contacts = this.data.contact;
+    try {
+      for (let index = 0; index < contacts.size(); index += 1) {
+        const contact = contacts.get(index);
+        if (!contact) continue;
+        try {
+          if (contact.dist > 0) continue;
+          const firstWorld = (bodyIds[contact.geom1] ?? -1) === 0;
+          const secondWorld = (bodyIds[contact.geom2] ?? -1) === 0;
+          if (firstWorld === secondWorld) continue;
+          const worldGeom = firstWorld ? contact.geom1 : contact.geom2;
+          if (worldGeom !== floorId) return true;
+        } finally {
+          contact.delete();
+        }
+      }
+      return false;
+    } finally {
+      contacts.delete();
+    }
   }
 
   dispose(): void {

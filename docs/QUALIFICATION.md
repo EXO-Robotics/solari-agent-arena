@@ -9,6 +9,8 @@ Evidence states are intentionally explicit:
 
 | Case | Local | Solari Sandbox | Solari Browser | Evidence |
 |---|---|---|---|---|
+| Agent tool clock | `LOCAL_PASS` — observe, wait one wall second, observe; simulated time stayed `0.8000000000000006` after one action | Not applicable; browser tool behavior | Pending revised-deployment proof | Local browser verification transcript |
+| Valid agent transcript, seed 42 | `LOCAL_PASS` — deterministic, 5/5, 21 actions, 26.124 s, zero collisions | `SOLARI_PASS` — two fresh Sandboxes produced identical metrics and telemetry hash `f87f2653…71dfbcf`; teardown confirmed | Pending revised-deployment proof | `public/evidence/valid-agent.solari-run.json`; `public/evidence/agent-qualification-summary.json` |
 | Valid controller, seed 42 | `LOCAL_PASS` — deterministic hash/metrics, 4/4, zero collisions | `SOLARI_PASS` — succeeded, result `2704f608…f74dd2c0` | `BROWSER_PASS` — all evidence fields matched; replay reached `COMPLETE` | `public/evidence/valid.solari-run.json`; `evidence/e2e/b1706f4c-95e6-4245-85e9-6674f97834bb/assertions.json` |
 | Hanging controller | `LOCAL_PASS` — QuickJS interrupt, exit 124 | `SOLARI_PASS` — timeout, teardown confirmed, result `1ec51d60…38987f47` | Not applicable to empty replay | `public/evidence/hanging.solari-run.json` |
 | Capability probe | `LOCAL_PASS` — `process` absent, runner-only failure | `SOLARI_PASS` — rejected, teardown confirmed, result `2e433ca7…aeb73bc6` | Not applicable to empty replay | `public/evidence/capability-attempt.solari-run.json` |
@@ -18,6 +20,7 @@ Evidence states are intentionally explicit:
 
 ```bash
 npm run qualify:local
+npm run qualify:solari-agent
 npm test
 npm run build
 ```
@@ -25,6 +28,8 @@ npm run build
 ## Live milestone
 
 Completed 2026-09-01 with `@solarisdk/sandbox` 0.1.2 against template `base`. The final valid run reproduced telemetry hash `3147f1ebe1ef4070ac8168ceed35fd53d1c95799d3a6c787701fc145b2d35cfe` after both failure cases. Every issued contract reports `sandboxTerminated: true`. This proves evaluator-service recovery under the tested sequence; it is not physical-host forensics or remote attestation.
+
+The agent transcript milestone also completed on 2026-09-01. Run IDs `cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f` and `4421a877-00ec-4e73-a711-7fcba6141c60` each completed 5/5 checkpoints in 21 actions, 26.124 simulated seconds, zero collisions, and score 14,304. Both fresh Sandboxes produced telemetry hash `f87f265301a8d64d54a85761f912cc5a5e812af96f46bf654a2ece03571dfbcf` and confirmed teardown.
 
 ## Production Browser milestone
 

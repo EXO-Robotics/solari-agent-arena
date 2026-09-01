@@ -20,7 +20,7 @@ export async function sha256(value: unknown): Promise<string> {
 }
 
 export async function verifyArtifactIntegrity(value: unknown): Promise<{ run: AuthoritativeRun; integrityChecked: true }> {
-  if (!isAuthoritativeRun(value)) throw new Error("Artifact does not match solari.arena.run.v1.");
+  if (!isAuthoritativeRun(value)) throw new Error("Artifact does not match a supported Solari Arena evidence contract.");
   const telemetryHash = await sha256(value.telemetry.samples);
   if (telemetryHash !== value.telemetry.hash) throw new Error("Telemetry hash mismatch.");
   const withoutHash = { ...value } as Partial<AuthoritativeRun>;

@@ -1,7 +1,7 @@
 {
   "name": "solari-agent-arena",
   "version": "1.0.0",
-  "description": "Preview AI robot controllers locally; evaluate them authoritatively in Solari Sandboxes.",
+  "description": "An AI-agent robot obstacle benchmark with browser tools and authoritative Solari transcript scoring.",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -16,14 +16,19 @@
     "evaluate:local": "node scripts/run-local-evaluator.mjs",
     "qualify:local": "vitest run server/runner/arena-runner.test.ts",
     "qualify:solari": "node --env-file-if-exists=.env.local scripts/qualify-solari.mjs",
-    "verify:solari-browser": "node --env-file-if-exists=.env.local scripts/verify-deployment.mjs"
+    "qualify:solari-agent": "node --env-file-if-exists=.env.local scripts/qualify-solari-agent.mjs",
+    "verify:solari-browser": "node --env-file-if-exists=.env.local scripts/verify-deployment.mjs",
+    "verify:agent-benchmark": "node --env-file-if-exists=.env.local scripts/verify-agent-benchmark.mjs",
+    "agent:mcp": "node --env-file-if-exists=.env.local scripts/arena-mcp-server.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
     "@mujoco/mujoco": "3.12.0",
     "@solarisdk/browser": "0.1.2",
     "@solarisdk/sandbox": "0.1.2",
     "quickjs-emscripten": "0.32.0",
-    "three": "0.180.0"
+    "three": "0.180.0",
+    "zod": "4.5.4"
   },
   "devDependencies": {
     "@types/three": "0.180.0",

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "solari.arena.agent-qualification.v1",
+  "generatedAt": "2026-09-01T11:50:43.264Z",
+  "seed": 42,
+  "courseId": "arena-slalom-ramp-v1",
+  "transcriptHash": "069e233483049d5c223b29b694d35b944dfc5b8b635c34c8ad079653ce5357fc",
+  "deterministicRepeat": true,
+  "cases": [
+    {
+      "case": "valid-agent",
+      "runId": "cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f",
+      "outcome": {
+        "status": "succeeded",
+        "reason": "course_complete",
+        "hostImpactAssessment": "not-measured-per-run"
+      },
+      "metrics": {
+        "checkpoints": 5,
+        "checkpointsTotal": 5,
+        "score": 14304,
+        "timeSeconds": 26.1239999999964,
+        "collisions": 0,
+        "distanceMeters": 22.34966560760173,
+        "topSpeedMps": 1.2492498369372693,
+        "energyJoules": 17002.155794212944,
+        "actionsUsed": 21
+      },
+      "telemetryHash": "f87f265301a8d64d54a85761f912cc5a5e812af96f46bf654a2ece03571dfbcf",
+      "resultHash": "c1228605200462728831938be0344a7e414496fb7f1749615c775b80aed055be",
+      "sandboxTerminated": true
+    },
+    {
+      "case": "valid-agent-repeat",
+      "runId": "4421a877-00ec-4e73-a711-7fcba6141c60",
+      "outcome": {
+        "status": "succeeded",
+        "reason": "course_complete",
+        "hostImpactAssessment": "not-measured-per-run"
+      },
+      "metrics": {
+        "checkpoints": 5,
+        "checkpointsTotal": 5,
+        "score": 14304,
+        "timeSeconds": 26.1239999999964,
+        "collisions": 0,
+        "distanceMeters": 22.34966560760173,
+        "topSpeedMps": 1.2492498369372693,
+        "energyJoules": 17002.155794212944,
+        "actionsUsed": 21
+      },
+      "telemetryHash": "f87f265301a8d64d54a85761f912cc5a5e812af96f46bf654a2ece03571dfbcf",
+      "resultHash": "062f96018cc1dc961eeef19de3151234d32b843ddac4b29e56caa0f07be13d6b",
+      "sandboxTerminated": true
+    }
+  ]
+}

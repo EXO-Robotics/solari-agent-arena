@@ -1,168 +1,186 @@
 # Solari Agent Arena
 
-> AI-generated robot controllers should be fast to preview locally, but isolated for authoritative evaluation.
+> Let an AI agent see a robot, control it through bounded tools, and cross an obstacle course. Preview instantly in the browser; score only by deterministic replay inside Solari.
 
-Solari Agent Arena turns the existing Robot-3D-Sim open-field trainer into a focused controller-evaluation product. The original MuJoCo/Three.js arena remains the immediate **Local Preview**. A second path sends the exact controller source and seed to a server-side evaluator, runs the full fixed-step MuJoCo simulation inside a fresh **Solari Sandbox**, returns a versioned hash-bound artifact, and replays only recorded state in the browser.
+[Live arena](https://solari-agent-arena.vercel.app/?agent=1) · [Authoritative agent replay](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid-agent.solari-run.json) · [Architecture](docs/ARCHITECTURE.md) · [Qualification ledger](docs/QUALIFICATION.md)
 
-The distinction is visible before the first run: **Local Preview is non-isolated and non-authoritative. Isolated Evaluation can issue evidence only after a real Sandbox run and confirmed teardown.**
+Solari Agent Arena turns [Robot-3D-Sim](https://github.com/EXO-Robotics/Robot-3D-Sim) into an embodied-agent benchmark. A local model, Codex, or browser-driving agent gets four narrow operations—reset, observe, act, and transcript—while looking at the same MuJoCo/Three.js arena as the human reviewer. The agent must visit five checkpoints, route around the ramp, and reach the final beacon.
 
-**Live demo:** [solari-agent-arena.vercel.app](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid.solari-run.json) · **Frozen proof:** [`assertions.json`](evidence/e2e/b1706f4c-95e6-4245-85e9-6674f97834bb/assertions.json)
+The browser trial is deliberately **non-authoritative**. The only authoritative score comes from replaying the validated action transcript with fixed-step MuJoCo inside a fresh **Solari Sandbox**, then binding the result, telemetry, replay state, course, seed, and transcript to SHA-256 evidence.
 
-## Trust boundary
+## The product in two minutes
 
-The original controller is compiled with `new Function` inside a same-origin Web Worker. Its 80 ms step watchdog can terminate a hung worker and keep the UI responsive, but a Worker still has browser-origin capabilities, compilation itself was unbounded, and requestAnimationFrame/Worker scheduling affects action timing. It is not a security boundary and it cannot issue an authoritative result.
+1. Open `/?agent=1`. The simulation clock is frozen while the model looks or thinks.
+2. The model calls `arena_observe` and `arena_act({drive, turn, durationMs})`. Every action is bounded to 100–2,000 ms of simulated time.
+3. The page shows pose, yaw, next checkpoint, collisions, simulated time, and remaining action budget. It records the exact action transcript.
+4. `RUN ISOLATED SCORE` submits only that transcript and seed. The external agent itself is **not** claimed to run inside Solari.
+5. A fresh Solari Sandbox replays the transcript through the frozen deterministic gait and MuJoCo model, scores it, emits `solari.arena.agent-run.v1`, and is killed before authority is issued.
+6. The browser verifies artifact hashes and replays recorded `qpos`/`qvel`; it never rescored the run.
 
-Solari materially changes that boundary:
+## Why Solari matters
 
-- A Vercel Node function holds `SOLARI_API_KEY`; the browser never receives it.
-- Every evaluation gets a fresh Solari Sandbox microVM and an unconditional teardown attempt.
-- The trusted Node evaluator and fixed-step MuJoCo 3.12 runtime run inside that Sandbox.
-- Submitted JavaScript runs only inside a separate QuickJS WASM runtime with memory, stack, per-step CPU, API, and output limits. It never executes in the evaluator's Node context.
-- The server canonicalizes and hashes the returned result after the Sandbox command completes and records whether teardown was confirmed.
-- The browser verifies artifact and telemetry integrity hashes, then renders recorded `qpos`/`qvel`; it does not rerun controller code or score physics.
+Robot-3D-Sim originally runs generated controller code in a same-origin Web Worker. Its 80 ms watchdog helps responsiveness, but a Worker is not a security boundary: it retains browser-origin capabilities, compilation is not time-bounded, and worker scheduling changes when cached commands reach physics. That path remains visible as **Local Preview / non-isolated / non-authoritative**.
 
-This is not a claim of Solari remote attestation or signed issuance. The nested isolation metadata labels hardware isolation as a claim based on Solari product documentation and sets `attested: false`. The contract also records `attestation: "none"` and `networkPolicy: "not-enforced-no-egress-required"`: the evaluator needs no network because its lock-bound 7.9 MB dependency bundle is uploaded with the runner, but this integration does not attest that egress is blocked.
+Solari adds two necessary boundaries:
+
+- **Solari Sandbox** is the outer microVM boundary for authoritative deterministic simulation. Controller-source qualification still nests submitted JavaScript in QuickJS; agent benchmarking accepts no model code at all, only a schema-validated bounded action transcript.
+- **Solari Browser** performs release verification. It drives the actual site tools, proves observation consumes zero simulated time, completes the browser course, compares the transcript to the authoritative artifact, verifies every rendered result field and hash, completes replay, and retains screenshots plus the rrweb session recording.
+
+There is no Solari Desktop integration. This evaluator is headless and the existing WebGL arena is already the correct visual surface.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  C[Controller editor]
-  C -->|Compile| W[Local Preview<br/>Web Worker + 80 ms watchdog]
-  W --> BM[Browser MuJoCo + Three.js]
-  BM --> N[No authoritative artifact]
-
-  C -->|POST source + seed| API[Vercel Node API<br/>server-only Solari key]
-  API -->|fresh microVM| S
-  subgraph S[Solari Sandbox / per run]
-    Q[QuickJS controller isolate]
-    M[Trusted fixed-step<br/>MuJoCo evaluator]
-    Q -->|validated actions| M
-    M --> T[Telemetry + replay state]
+  A[Local model / Codex / agent]
+  A -->|Codex site tools| WM[WebMCP on live page]
+  A -->|standard stdio MCP| MB[Local MCP bridge]
+  MB -->|server-side API key| SB[Solari Browser]
+  A -->|Safari computer use| UI[Accessible arena controls]
+  WM --> BT[Browser Agent Tool Trial]
+  SB --> BT
+  UI --> BT
+  BT -->|reset / observe / bounded act| BM[Browser MuJoCo + Three.js]
+  BM --> TR[solari.arena.agent-transcript.v1]
+  TR -->|POST + admission token| API[Vercel Node API<br/>Solari key server-side]
+  API --> SS
+  subgraph SS[Fresh Solari Sandbox]
+    V[Validate canonical transcript]
+    M[Fixed gait + MuJoCo 3.12<br/>2 ms authoritative simulation]
+    E[Score + telemetry + replay state]
+    V --> M --> E
   end
-  T --> API
-  API --> A[solari.arena.run.v1<br/>canonical hashes]
-  A --> R[Browser verified replay<br/>no physics scoring]
-  B[Solari Browser<br/>recording enabled] -->|assert DOM + hashes + completion| R
-  B --> P[Assertion report + screenshots<br/>+ rrweb recording]
+  E --> AR[solari.arena.agent-run.v1<br/>hash-bound evidence]
+  AR --> RP[Browser integrity check + recorded replay]
+  VR[Solari Browser release verifier] -->|site tools + DOM + hashes + completion| RP
 ```
 
-The detailed boundary and failure model are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The trust claim is intentionally narrow: **the external model is outside the isolated boundary**. Sandbox authority covers validated transcript replay and scoring. A manipulated browser trial cannot mint an authoritative score.
 
-## Authoritative evaluation flow
+## Agent tool surfaces
 
-1. The API validates source size, controller shape, and a uint32 seed, then computes the controller SHA-256.
-2. It creates a fresh Solari Sandbox with bounded CPU/memory and kill-on-idle cleanup.
-3. It uploads the commit-pinned runner, frozen MJCF model, input, lockfiles, and a hash-recorded offline MuJoCo/QuickJS dependency bundle without shell interpolation.
-4. The Sandbox unpacks that bundle without registry access and starts the evaluator with a 30 s command deadline. Its 90 s idle timeout is a distinct cleanup backstop, not a controller deadline.
-5. QuickJS compiles and invokes `control(robot, dt)` under a 12 ms interrupt deadline. Results are JSON-size-limited, schema-filtered, finite-checked, and clamped before MuJoCo receives them.
-6. MuJoCo advances at 2 ms for a fixed 8.00 s. A seed-derived initial yaw, checkpoints, collisions, telemetry, energy, and replay state are recorded.
-7. The Sandbox is killed in `finally`. Only after creation, a structured runner outcome, and confirmed teardown does the server emit `solari.arena.run.v1`. Infrastructure or teardown failures return HTTP 502 and mint no authoritative artifact.
-8. The browser independently verifies both hashes before enabling replay.
+### Codex built-in browser: site tools
 
-## Evidence contract
+Open the [live agent arena](https://solari-agent-arena.vercel.app/?agent=1) in Codex’s built-in browser. The top-level page registers these WebMCP site tools:
 
-Every run contains:
-
-- schema version and run ID;
-- controller SHA-256 and uint32 seed;
-- Solari product, SDK, template, hashed Sandbox ID, isolation/runtime, runner/model hashes, deadlines, wall time, and teardown result;
-- outcome, reason, and an explicit `hostImpactAssessment: "not-measured-per-run"` proof boundary;
-- checkpoints, score, simulated time, collisions, distance, top speed, and energy;
-- replay/telemetry samples plus their SHA-256;
-- a canonical full-result SHA-256.
-
-See [docs/EVIDENCE_CONTRACT.md](docs/EVIDENCE_CONTRACT.md) and [`src/evidence/contract.ts`](src/evidence/contract.ts).
-
-## Qualification and proof
-
-| Case | Expected boundary result | Targeted local proof | Retained Solari evidence |
-|---|---|---|---|
-| Valid controller | Normal completion; 4/4 checkpoints; deterministic telemetry hash for identical seed | `arena-runner.test.ts` repeats seed 42 and compares full metrics/hash | **SOLARI_PASS + BROWSER_PASS** — [`valid.solari-run.json`](public/evidence/valid.solari-run.json); [`assertions.json`](evidence/e2e/b1706f4c-95e6-4245-85e9-6674f97834bb/assertions.json) |
-| Hanging controller | QuickJS interrupt; bounded timeout; Sandbox killed; next valid run unaffected | Infinite loop exits runner with code 124 | **SOLARI_PASS** — [`hanging.solari-run.json`](public/evidence/hanging.solari-run.json) |
-| Capability attempt | QuickJS has no `process`; contained ReferenceError maps to `capability_violation` | Benign `process.exit(17)` probe fails inside only the sealed runner | **SOLARI_PASS** — [`capability-attempt.solari-run.json`](public/evidence/capability-attempt.solari-run.json) |
-
-The live SDK sequence completed on 2026-09-01: valid → hanging → capability attempt → valid again. Both valid runs produced telemetry hash `3147f1eb…d35cfe`, and every Sandbox reported confirmed teardown. See the checked-in [`qualification-summary.json`](public/evidence/qualification-summary.json). A recording-enabled Solari Browser then verified the production deployment at commit `8ec6c39afa07f7460b957b91d7a9abdb489737b7`, including every rendered evidence field, global `READY` → `COMPLETE` state, and replay completion. The retained proof bundle contains assertions, screenshots, hashes, and rrweb session evidence; see [docs/QUALIFICATION.md](docs/QUALIFICATION.md).
-
-## Solari Browser is a verifier
-
-`scripts/verify-deployment.mjs` uses a real recording-enabled Solari Browser session to:
-
-1. open the deployed artifact URL;
-2. independently hash the local authoritative artifact;
-3. compare rendered run ID, controller hash, seed, outcome, checkpoints, score, time, collisions, telemetry hash, and result hash;
-4. start replay and wait for the explicit `COMPLETE` state;
-5. retain `assertions.json`, loaded/final screenshots, the downloaded rrweb NDJSON recording, and hashes.
-
-A screenshot by itself is not treated as proof.
-
-## Exact Solari components
-
-| Component | Why it is necessary |
+| Tool | Effect |
 |---|---|
-| **Solari Sandbox** (`@solarisdk/sandbox` 0.1.2) | Supplies the fresh hardware-isolated outer execution boundary and bounded teardown for untrusted controller evaluation. |
-| **Solari Browser** (`@solarisdk/browser` 0.1.2) | Verifies that the deployed public replay faithfully renders the authoritative artifact and retains a session recording. |
-| Solari Desktop | **Not used.** The evaluator is headless and the existing WebGL UI is already the correct visual surface; Desktop would add cost and no proof. |
+| `arena_reset(seed)` | Reset to a uint32 seed and return the initial observation. |
+| `arena_observe()` | Read pose/progress without advancing simulated time. |
+| `arena_act(drive, turn, durationMs)` | Advance one bounded action and return the resulting observation. |
+| `arena_transcript()` | Return the exact bounded controller artifact for isolated scoring. |
 
-QuickJS is an in-guest controller/evaluator boundary, not a Solari product and not a replacement for the Sandbox.
+Codex can discover site tools from an open page without installing a separate MCP server. Current OpenAI setup/availability details are in the [official site-tools documentation](https://learn.chatgpt.com/docs/webmcp).
+
+### Local models or Codex CLI: standard MCP bridge
+
+The checked-in stdio server launches a recording-enabled Solari Browser and exposes `arena_open`, `arena_observe`, `arena_look`, `arena_act`, `arena_transcript`, and `arena_close`. `arena_look` and every action return both structured state and a PNG view. Closing can retain the transcript, final screenshot, rrweb replay, and hash receipt under `evidence/agent-sessions/`.
+
+For Codex, add it from the repository root:
+
+```bash
+codex mcp add solari-agent-arena -- \
+  node --env-file-if-exists=/absolute/path/to/solari-agent-arena/.env.local \
+  /absolute/path/to/solari-agent-arena/scripts/arena-mcp-server.mjs
+```
+
+Then restart Codex and inspect `/mcp`. Codex’s official stdio/config options are documented in [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp). Any local model host that supports stdio MCP can use the same Node command.
+
+The MCP bridge reads `SOLARI_API_KEY` only in its local Node process. The visited page never receives it.
+
+### Safari or ordinary browser automation
+
+The Agent Tools panel exposes accessible buttons and status fields. Browser automation may also call the same frozen API at `window.solariAgentArena`. Safari does not provide Codex site tools; a local model needs computer-use/browser automation or the standard MCP bridge.
+
+## Tool and transcript contract
+
+- Schema: `solari.arena.agent-tools.v1` and `solari.arena.agent-transcript.v1`.
+- Frozen course: `arena-slalom-ramp-v1`, five sequential circular checkpoints.
+- Budget: 60 simulated seconds, 120 actions.
+- Action limits: drive ±1.6, turn ±1.4, duration 100–2,000 ms.
+- Thinking cost: zero simulated time between calls.
+- Determinism: seeded start yaw, trusted gait targets, 10 ms control updates, 2 ms MuJoCo step.
+- Authority: transcript sequence, fields, finiteness, limits, total time, seed, and course ID are revalidated server-side and again inside the runner input boundary.
+
+The valid qualification transcript completes 5/5 checkpoints in 21 actions, 26.124 simulated seconds, and zero collisions.
+
+## Evidence contracts
+
+`solari.arena.agent-run.v1` contains at minimum:
+
+- run ID, transcript/controller SHA-256, seed, external-agent label and explicit `external-not-isolated` runtime;
+- Solari SDK/product/template, hashed Sandbox ID, runner/model/course/dependency hashes, deadlines, wall time, and confirmed teardown;
+- authoritative-boundary label `validated-transcript-replay-and-scoring`;
+- outcome, checkpoints, score, simulated time, collisions, distance, speed, energy, and actions used;
+- per-action receipts, replay/telemetry state and hash, and canonical full-result hash.
+
+For an agent run, `controllerHash` equals `transcriptHash` because the bounded action transcript is the exact effective controller artifact being judged. Controller-source runs retain `solari.arena.run.v1`, where `controllerHash` hashes the submitted JavaScript source.
+
+Both contracts are unsigned integrity artifacts, not remote attestation. `sandboxTerminated: true` means the SDK kill completed; it is not cryptographic destruction proof. See [docs/EVIDENCE_CONTRACT.md](docs/EVIDENCE_CONTRACT.md).
+
+## Concise proof table
+
+| Claim | Proof | Boundary |
+|---|---|---|
+| Browser thinking costs zero simulated time | Browser E2E observes time 0, waits 750 ms wall time, observes time 0 | Browser behavior, not authority |
+| Agent course can be completed | Valid transcript: 5/5, 21 actions, 26.124 s, 0 collisions | Local deterministic runner + live Sandbox |
+| Agent score is repeatable in Solari | Two fresh Sandboxes produce identical physics metrics and telemetry hash `f87f2653…71dfbcf` | Same frozen Sandbox evaluator environment |
+| Hanging generated controller is bounded | QuickJS interrupt → timeout, Sandbox killed | Controller-source qualification path |
+| Benign Node capability probe is contained | `process` unavailable → capability violation, Sandbox killed | Controller-source qualification path |
+| Failure cases do not poison the service | valid → hang → capability probe → valid reproduces telemetry/metrics | Tested service recovery, not host forensics |
+| Public UI matches authority | Solari Browser compares all fields/hashes and reaches replay `COMPLETE` | Deployed presentation fidelity |
+
+Retained artifacts live in `public/evidence/`, `evidence/e2e/`, and `evidence/agent-e2e/`. See [docs/QUALIFICATION.md](docs/QUALIFICATION.md) for exact IDs and hashes.
 
 ## Local setup
 
-Requirements: Node 22+ and, for live isolated runs, a Solari API key.
+Requirements: Node 22+. A Solari key is needed only for live Sandbox/Browser operations.
 
 ```bash
 npm ci
 npm test
+npm run build
 npm run dev
 ```
 
-Copy `.env.example` to `.env.local` only for local server/deployment tooling. Never use a `VITE_` prefix for the Solari key. Vite alone serves Local Preview; use `vercel dev` when exercising `/api/evaluate`.
-
-```bash
-npx vercel dev
-```
-
-Targeted evaluator qualification does not require a Solari key:
-
-```bash
-npm run qualify:local
-```
-
-`server/runner/runner-dependencies.tgz` is the checked-in offline evaluator bundle. After deliberately changing a pinned MuJoCo/QuickJS dependency, regenerate it with `npm run bundle:runner`; CI executes the bundle itself, without `npm install`, to prove the uploaded bytes are runnable.
-
-## Deployment
-
-The app targets Vercel because an authenticated Node function is required. The public deployment is [solari-agent-arena.vercel.app](https://solari-agent-arena.vercel.app). Set these encrypted server-side environment variables in Vercel:
+Copy `.env.example` to `.env.local` for server-side/local bridge tooling:
 
 ```text
 SOLARI_API_KEY=slr_live_...
 SOLARI_SANDBOX_TEMPLATE=base
+SOLARI_EVALUATION_TOKEN=separate-demo-admission-code
 SOLARI_EVALUATION_ENABLED=false
-SOLARI_EVALUATION_TOKEN=generate-a-separate-demo-access-code
 ```
 
-Keep paid public evaluation disabled by default. Enabling it also requires a separate admission code, entered by the reviewer at run time, and the function permits only one concurrent run per warm instance. This code is not a Solari credential. Checked-in integrity-verified replays remain public when live runs are paused. Build and deploy:
+Never prefix the Solari key with `VITE_`. Vite alone serves the browser trials; use `vercel dev` for `/api/evaluate` and `/api/agent-evaluate`.
+
+Useful commands:
 
 ```bash
-npm test
-npm run build
+npm run qualify:local
+npm run qualify:solari-agent
+npm run agent:mcp
+npm run verify:agent-benchmark
+```
+
+## Deployment
+
+The public deployment uses Vercel because Solari credentials and evaluation admission must stay in a Node function:
+
+```bash
+npx vercel env add SOLARI_API_KEY production --sensitive
+npx vercel env add SOLARI_EVALUATION_TOKEN production --sensitive
+npx vercel env add SOLARI_SANDBOX_TEMPLATE production
+npx vercel env add SOLARI_EVALUATION_ENABLED production
 npx vercel deploy --prod
 ```
 
-GitHub Actions runs the full local suite/build on every change. The manual **Solari Browser proof** workflow uses a repository secret and uploads the proof bundle.
+Keep `SOLARI_EVALUATION_ENABLED=false` on unattended public deployments. Checked-in authoritative replays stay public; paid live evaluation requires deliberately enabling it plus the separate admission token. The admission token is not a Solari credential.
 
 ## Relationship to Robot-3D-Sim
 
-This repository preserves the two-commit history and MIT attribution of [EXO-Robotics/Robot-3D-Sim](https://github.com/EXO-Robotics/Robot-3D-Sim) through clean `main` commit `cf0eec20d6754161683112d3b43f97c394f5b966`. It deliberately does not import the unrelated, untracked benchmark/export workspace or turn into a general Robo Olympics platform.
+This repository preserves the clean `main` history and MIT attribution of Robot-3D-Sim through commit `cf0eec20d6754161683112d3b43f97c394f5b966`. It reuses the MuJoCo WASM model, Three.js robot/arena renderer, controller editor, Worker/watchdog, telemetry, visual assets, and build tests.
 
-Reused work includes the original MuJoCo WASM model, Three.js robot/arena renderer, local controller editor, Worker/watchdog, command filtering, telemetry, visual assets, and build tests. The submission adds the explicit trust split, authoritative server/Solari path, deterministic evidence contract, replay-state restoration, qualification fixtures, proof workflow, and focused product presentation.
+The focused Solari submission adds the visible trust split, agent tool benchmark, deterministic transcript contract, WebMCP and stdio MCP surfaces, server-only Sandbox authority, hash-bound evidence/replay, qualification fixtures, and recording-enabled Browser verification. It deliberately does not import unrelated simulator branches or become a general Robo Olympics platform.
 
-## Proof boundaries
-
-- Local Preview is real MuJoCo contact simulation, but it is an assisted trainer and non-authoritative.
-- Browser replay renders frozen authoritative state; it does not prove or redo scoring. Its public check is unsigned hash integrity, not cryptographic issuer authentication.
-- `sandboxTerminated: true` means the SDK teardown call completed; it is not a cryptographic destruction attestation.
-- Per-run evidence says host impact is not measured. The live qualification's valid → failures → valid sequence proves evaluator-service recovery, not general malware analysis or physical-host forensics.
-- The hostile fixture is intentionally benign: it probes a missing capability and never creates destructive malware.
-
-License: MIT. Original attribution and history are preserved.
+License: MIT. Original attribution and Git history are preserved.

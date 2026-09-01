@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "solari.arena.course.v1",
+  "courseId": "arena-slalom-ramp-v1",
+  "maxSeconds": 60,
+  "maxActions": 120,
+  "maxActionDurationMs": 2000,
+  "maxDrive": 1.6,
+  "maxTurn": 1.4,
+  "checkpoints": [
+    { "id": "slalom-entry", "x": 4, "y": 2, "radius": 1.25 },
+    { "id": "crate-a-south", "x": 6, "y": 2, "radius": 1 },
+    { "id": "crate-b-south", "x": 8.5, "y": 2.5, "radius": 1 },
+    { "id": "ramp-east-gate", "x": 13, "y": 0, "radius": 1.25 },
+    { "id": "east-beacon", "x": 15, "y": -9, "radius": 1.5 }
+  ]
+}

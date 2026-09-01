@@ -1,8 +1,9 @@
 import type { SensorFrame } from "../sim/types";
 
 export const RUN_SCHEMA_VERSION = "solari.arena.run.v1" as const;
+export const AGENT_RUN_SCHEMA_VERSION = "solari.arena.agent-run.v1" as const;
 
-export type EvaluationStatus = "succeeded" | "timeout" | "rejected" | "runtime_error";
+export type EvaluationStatus = "succeeded" | "timeout" | "rejected" | "runtime_error" | "incomplete" | "fallen" | "time_limit";
 
 export interface ReplaySample {
   time: number;
@@ -12,9 +13,15 @@ export interface ReplaySample {
 }
 
 export interface AuthoritativeRun {
-  schemaVersion: typeof RUN_SCHEMA_VERSION;
+  schemaVersion: typeof RUN_SCHEMA_VERSION | typeof AGENT_RUN_SCHEMA_VERSION;
   runId: string;
   controllerHash: string;
+  transcriptHash?: string;
+  agent?: {
+    label: string;
+    runtime: "external-not-isolated";
+    controllerArtifact: "bounded-action-transcript";
+  };
   seed: number;
   execution: {
     provider: "solari";
@@ -28,10 +35,12 @@ export interface AuthoritativeRun {
       basis: "solari-product-documentation";
       attested: false;
     };
-    controllerRuntime: "quickjs-wasm";
+    controllerRuntime?: "quickjs-wasm";
+    authoritativeBoundary?: "validated-transcript-replay-and-scoring";
     simulator: "mujoco-wasm-3.12.0";
     runnerHash: string;
     modelHash: string;
+    courseHash?: string;
     dependencyBundleHash: string;
     startedAt: string;
     completedAt: string;
@@ -57,7 +66,16 @@ export interface AuthoritativeRun {
     distanceMeters: number;
     topSpeedMps: number;
     energyJoules: number;
+    actionsUsed?: number;
   };
+  actionResults?: Array<{
+    sequence: number;
+    time: number;
+    position: { x: number; y: number };
+    yaw: number;
+    checkpoints: number;
+    collisions: number;
+  }>;
   telemetry: {
     sampleCount: number;
     hash: string;
@@ -69,7 +87,16 @@ export interface AuthoritativeRun {
 export function isAuthoritativeRun(value: unknown): value is AuthoritativeRun {
   if (!value || typeof value !== "object") return false;
   const run = value as Partial<AuthoritativeRun>;
-  return run.schemaVersion === RUN_SCHEMA_VERSION
+  const supportedSchema = run.schemaVersion === RUN_SCHEMA_VERSION || run.schemaVersion === AGENT_RUN_SCHEMA_VERSION;
+  const validAgentFields = run.schemaVersion !== AGENT_RUN_SCHEMA_VERSION || (
+    /^[a-f0-9]{64}$/.test(run.transcriptHash ?? "")
+    && run.transcriptHash === run.controllerHash
+    && run.agent?.runtime === "external-not-isolated"
+    && run.agent?.controllerArtifact === "bounded-action-transcript"
+    && run.execution?.authoritativeBoundary === "validated-transcript-replay-and-scoring"
+  );
+  return supportedSchema
+    && validAgentFields
     && typeof run.runId === "string"
     && /^[a-f0-9]{64}$/.test(run.controllerHash ?? "")
     && Number.isSafeInteger(run.seed)

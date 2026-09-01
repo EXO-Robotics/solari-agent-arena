@@ -10,5 +10,6 @@ coverage/
 *.blend1
 *.blend2
 __pycache__/
+evidence/agent-sessions/
 .vercel
 .env*

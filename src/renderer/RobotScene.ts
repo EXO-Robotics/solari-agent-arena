@@ -4,6 +4,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { VISUAL_LINK_NAMES, visualModelUrl, type VisualLinkName } from "../model/visualContract";
 import type { MujocoEngine } from "../physics/MujocoEngine";
 import type { SensorFrame } from "../sim/types";
+import type { CourseCheckpoint } from "../agent/contract";
 import { HORIZON, STATUS_CYAN, createCollisionMaterial, fieldKindForGeom, fieldMaterial } from "./materials";
 import { applyMuJoCoPose, createGeomGeometry } from "./mujocoMath";
 import { loadVisualModel, type VisualLinks } from "./visualBinding";
@@ -26,6 +27,8 @@ export class RobotScene {
   private readonly comLine: THREE.Line;
   private readonly forceArrows: [THREE.ArrowHelper, THREE.ArrowHelper];
   private readonly statusLight: THREE.PointLight;
+  private readonly agentCourseGroup = new THREE.Group();
+  private readonly agentCheckpointMarkers: THREE.Mesh[] = [];
   private readonly resizeObserver: ResizeObserver;
   private readonly pmrem: THREE.PMREMGenerator;
   private cameraMode: CameraMode = "follow";
@@ -107,6 +110,8 @@ export class RobotScene {
       new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(), 0, STATUS_CYAN, 0.08, 0.04),
     ];
     this.scene.add(this.comMarker, this.comLine, ...this.forceArrows);
+    this.agentCourseGroup.visible = false;
+    this.scene.add(this.agentCourseGroup);
     this.setDebug(false);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -152,6 +157,37 @@ export class RobotScene {
     for (const mesh of this.collisionMeshes) {
       if (mesh) mesh.visible = enabled;
     }
+  }
+
+  configureAgentCourse(checkpoints: CourseCheckpoint[]): void {
+    this.agentCourseGroup.clear();
+    this.agentCheckpointMarkers.length = 0;
+    const path = [new THREE.Vector3(0, 0, 0.025), ...checkpoints.map((point) => new THREE.Vector3(point.x, point.y, 0.025))];
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(path),
+      new THREE.LineDashedMaterial({ color: STATUS_CYAN, transparent: true, opacity: 0.42, dashSize: 0.35, gapSize: 0.24 }),
+    );
+    line.computeLineDistances();
+    this.agentCourseGroup.add(line);
+    checkpoints.forEach((checkpoint) => {
+      const marker = new THREE.Mesh(
+        new THREE.RingGeometry(Math.max(0.18, checkpoint.radius - 0.08), checkpoint.radius, 48),
+        new THREE.MeshBasicMaterial({ color: 0x697169, transparent: true, opacity: 0.68, side: THREE.DoubleSide }),
+      );
+      marker.position.set(checkpoint.x, checkpoint.y, 0.035);
+      marker.userData.checkpointId = checkpoint.id;
+      this.agentCheckpointMarkers.push(marker);
+      this.agentCourseGroup.add(marker);
+    });
+  }
+
+  setAgentCourseProgress(active: boolean, reached: number): void {
+    this.agentCourseGroup.visible = active;
+    this.agentCheckpointMarkers.forEach((marker, index) => {
+      const material = marker.material as THREE.MeshBasicMaterial;
+      material.color.setHex(index < reached ? 0x4f5a51 : index === reached ? STATUS_CYAN : 0x697169);
+      material.opacity = index === reached ? 0.95 : 0.5;
+    });
   }
 
   dispose(): void {
