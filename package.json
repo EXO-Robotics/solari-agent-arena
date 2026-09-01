@@ -15,8 +15,8 @@
     "test:watch": "vitest",
     "evaluate:local": "node scripts/run-local-evaluator.mjs",
     "qualify:local": "vitest run server/runner/arena-runner.test.ts",
-    "qualify:solari": "node scripts/qualify-solari.mjs",
-    "verify:solari-browser": "node scripts/verify-deployment.mjs"
+    "qualify:solari": "node --env-file-if-exists=.env.local scripts/qualify-solari.mjs",
+    "verify:solari-browser": "node --env-file-if-exists=.env.local scripts/verify-deployment.mjs"
   },
   "dependencies": {
     "@mujoco/mujoco": "3.12.0",
