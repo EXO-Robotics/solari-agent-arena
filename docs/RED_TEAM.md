@@ -119,6 +119,15 @@ Fresh Grok session `01a05d93-c5b2-7bb3-b86b-e555f4e7f3d2` inspected the revised 
 
 The public-production admission controls are now implemented behind the still-closed release gate: atomic Redis holder/IP/global daily and concurrency limits, a one-time pairing transition, durable active leases, signed five-minute unclaimed cleanup, signed twenty-minute deadline cleanup, an exact five-minute recovery sweep with a fail-closed heartbeat, idempotent provider release, charged retention for uncertain provider outcomes, poison-record backoff/pruning, and an owner-only usage-epoch reset with a latest-reset record. Production Redis and QStash are attached; the first scheduled QStash request was delivered and refreshed the namespaced Redis heartbeat. `SOLARI_REMOTE_ENABLED=false` remains the release gate until the staged managed challenge is published and the live admission/release qualification passes.
 
+## Public-admission prelaunch review
+
+Sanitized Grok session `01a05f0c-fe0f-7b23-ae4f-1a561b71e415` reviewed tracked public commit `5c2b21c` with web search, subagents, and write tools disabled. It exhausted the six-turn limit, so its 8.5/10 draft was not accepted as final signoff. Two concrete Medium candidates were validated independently:
+
+- Accepted: after a committed ticket, simultaneous QStash scheduling failure and unconfirmed provider release left the recurring sweep index at the twenty-minute hard deadline. The lease remained charged and bounded, but the advertised five-minute unclaimed recovery was not independently guaranteed. Commit-time indexing now uses `pairingExpiresAt`; the one-time atomic redeem transition advances both global and per-IP indexes to `hardExpiresAt`. Targeted admission/expiry tests cover the lifecycle deadline transition.
+- Rejected as a duplicate incorrect finding: `finishPractice()` does not construct a receipt from undefined browser state. JavaScript propagates the read error after its `finally` release attempt; `/api/arena-command` catches it, sanitizes infrastructure details, and returns HTTP 502. Capacity is cleared only when provider release is accepted. This is the same finding rejected with code evidence in the Hosted remote MCP review above.
+
+A fresh final Grok review is still required after the WAF gate is active and the cold anonymous public run is retained. This prelaunch pass is remediation input, not release approval.
+
 ## Zero-install HTTPS live walkthrough
 
 A fresh `gpt-5.6-luna` tester received only the exact system prompt copied from the production Safari course picker. It had no repository context and was explicitly forbidden from using preconfigured Arena/MCP tools. Using ordinary HTTPS, it completed `practice-first-steps-v1` at seed 42 with 3/3 checkpoints, 9 actions, 9.81 simulated seconds, zero collisions, and `releaseAccepted=true`.

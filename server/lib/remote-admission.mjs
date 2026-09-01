@@ -67,8 +67,8 @@ redis.call("HSET", KEYS[1],
   "state", "pairing", "sessionId", sessionId, "sessionIdHash", sessionIdHash,
   "pairingExpiresAt", pairingExpiresAt, "hardExpiresAt", hardExpiresAt)
 redis.call("EXPIRE", KEYS[1], ttl)
-redis.call("ZADD", KEYS[2], hardExpiresAt, leaseId)
-redis.call("ZADD", ARGV[7] .. ":active:ip:" .. ipHash, hardExpiresAt, leaseId)
+redis.call("ZADD", KEYS[2], pairingExpiresAt, leaseId)
+redis.call("ZADD", ARGV[7] .. ":active:ip:" .. ipHash, pairingExpiresAt, leaseId)
 redis.call("SET", KEYS[3], leaseId, "EX", ttl)
 redis.call("EXPIRE", KEYS[4], ttl)
 return 1
@@ -135,7 +135,12 @@ const REDEEM_SCRIPT = `-- saa.redeem.v1
 if redis.call("HGET", KEYS[1], "state") ~= "pairing" then return 0 end
 if redis.call("HGET", KEYS[1], "sessionIdHash") ~= ARGV[1] then return 0 end
 if redis.call("HEXISTS", KEYS[1], "ticketJtiHash") == 1 then return 0 end
+local hardExpiresAt = tonumber(redis.call("HGET", KEYS[1], "hardExpiresAt"))
+local ipHash = redis.call("HGET", KEYS[1], "ipHash")
+if not hardExpiresAt or not ipHash then return 0 end
 redis.call("HSET", KEYS[1], "state", "active", "ticketJtiHash", ARGV[2], "redeemedAt", ARGV[3])
+redis.call("ZADD", KEYS[2], hardExpiresAt, ARGV[4])
+redis.call("ZADD", ARGV[5] .. ":active:ip:" .. ipHash, hardExpiresAt, ARGV[4])
 return 1
 `;
 
@@ -402,7 +407,7 @@ export async function cancelPendingAdmission(admission, redis = redisFromEnv()) 
 export async function redeemAdmission(leaseId, sessionId, ticketJtiHash, redis = redisFromEnv(), nowMs = Date.now()) {
   const sessionIdHash = hmac("session-hash", sessionId);
   const k = keys(leaseId, "unused", sessionIdHash);
-  const redeemed = await redis.eval(REDEEM_SCRIPT, [k.lease], [sessionIdHash, ticketJtiHash, Math.floor(nowMs / 1_000)]);
+  const redeemed = await redis.eval(REDEEM_SCRIPT, [k.lease, k.active], [sessionIdHash, ticketJtiHash, Math.floor(nowMs / 1_000), leaseId, k.base]);
   if (Number(redeemed) !== 1) throw new Error("Arena pairing ticket was already redeemed or revoked.");
   return true;
 }

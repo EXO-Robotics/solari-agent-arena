@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   AdmissionError, __test, acquireCleanupLock, acquireCommandLock, anonymousHolder, assertAdmissionSweepHeartbeat,
-  clientIpHash, recordAdmissionSweepHeartbeat, releaseCommandLock, remoteAdmissionConfigured, reserveAdmission, resetDailyUsage,
+  clientIpHash, recordAdmissionSweepHeartbeat, redeemAdmission, releaseCommandLock, remoteAdmissionConfigured, reserveAdmission, resetDailyUsage,
 } from "./remote-admission.mjs";
 import { ensureAdmissionSweep, scheduleAdmissionExpiry } from "./remote-expiry-scheduler.mjs";
 
@@ -118,6 +118,18 @@ describe("remote public admission", () => {
     expect(__test.RESERVE_SCRIPT).toContain('redis.call("INCR", globalDailyKey)');
     expect(__test.RESERVE_SCRIPT).toContain('redis.call("HSET", KEYS[5]');
     expect(__test.CANCEL_PENDING_SCRIPT).toContain('redis.call("DECR", key)');
+  });
+
+  it("indexes pairing at five minutes and atomically extends a redeemed lease to its hard deadline", async () => {
+    expect(__test.COMMIT_SCRIPT).toContain('redis.call("ZADD", KEYS[2], pairingExpiresAt, leaseId)');
+    expect(__test.REDEEM_SCRIPT).toContain('redis.call("ZADD", KEYS[2], hardExpiresAt, ARGV[4])');
+    const calls = [];
+    const redis = { async eval(script, keys, args) { calls.push({ script, keys, args }); return 1; } };
+    const leaseId = "11111111-1111-4111-8111-111111111111";
+    await redeemAdmission(leaseId, "provider-session-123", "ticket-jti-hash", redis, 1_000_000);
+    expect(calls[0].keys).toHaveLength(2);
+    expect(calls[0].args.slice(1, 4)).toEqual(["ticket-jti-hash", 1_000, leaseId]);
+    expect(calls[0].args[4]).toBe("{saa-remote-v1}:test");
   });
 
   it("uses an owned distributed command lock and never blindly deletes a successor lock", async () => {
