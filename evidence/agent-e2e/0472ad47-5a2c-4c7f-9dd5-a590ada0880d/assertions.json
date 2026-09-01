@@ -1,11 +1,11 @@
 {
   "schemaVersion": "solari.arena.agent-browser-proof.v1",
   "deployedUrl": "https://solari-agent-arena.vercel.app",
-  "deploymentCommit": "1143c368a209cba09ce915196f6ba284bf840abe",
+  "deploymentCommit": "cd9e8a7b94d8320a18d29e7d2928779ad15ce167",
   "runId": "0472ad47-5a2c-4c7f-9dd5-a590ada0880d",
-  "sessionIdHash": "611f00b7c5df5820f0e69833a3e9fe533a2a76c613e40aa5528a78975e5c3ea5",
-  "startedAt": "2026-09-01T12:24:12.340Z",
-  "completedAt": "2026-09-01T12:26:05.646Z",
+  "sessionIdHash": "761e56aa904d1e8a548ff0fa3115794752dbb43215c969805d354100d1468278",
+  "startedAt": "2026-09-01T12:46:50.610Z",
+  "completedAt": "2026-09-01T12:48:49.321Z",
   "observations": {
     "agentToolApiVersion": "solari.arena.agent-tools.v1",
     "zeroCostObservation": true,
@@ -33,10 +33,10 @@
   "hashes": {
     "artifact": "5e58cd178d5fc269b249b04968db3b79b64f788e1c42aa5a30257e36b05e4800",
     "transcript": "069e233483049d5c223b29b694d35b944dfc5b8b635c34c8ad079653ce5357fc",
-    "trialScreenshot": "e704a06e479c2b95d89a862c56cbb31e7b413af376bd235a3627a6759e11c3a2",
-    "artifactScreenshot": "eca269d576417b9deaa2d6fad133e1dc9292a5596fee2b91099f5ef2ca15c5c7",
-    "replayScreenshot": "e788a9521ad38a336246ab66ed6bb801c272bf5a79b8203dd98d5eac52ae8425",
-    "browserReplay": "248a0961fd5dff7f4cb9069a8da28d16c818a2b66c945eedeb51174be3f8c590"
+    "trialScreenshot": "79d69c46f013b96a143b31a6e49b19fae65560b9c2d49108ce2d99f6fb61df1c",
+    "artifactScreenshot": "39b6ea38b73d37fd1bfcbae5677d479b5c4a8ca2035ba0e9972a13219b2d8bc0",
+    "replayScreenshot": "c5957e72fdeb5e7dd0670f92d653bfc07e821ee94f7b8635114b8e68a971edd2",
+    "browserReplay": "f45c48cea77e37680148294c4a3c4edccf60b631bcb46d92fd9f08c244782d5b"
   },
   "passed": true
 }
