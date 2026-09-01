@@ -114,7 +114,7 @@ export class App {
         if (sample) {
           const indexChanged = this.replayIndex !== this.lastRenderedReplayIndex;
           if (indexChanged) engine.restoreState(sample.qpos, sample.qvel);
-          scene.update(sample.frame, this.replayPlaying);
+          scene.update(sample.frame, this.replayPlaying || indexChanged);
           if (this.replayPlaying || indexChanged) {
             this.renderReplayFrame(sample.frame);
             this.lastRenderedReplayIndex = this.replayIndex;

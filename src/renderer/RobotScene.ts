@@ -79,6 +79,9 @@ export class RobotScene {
     this.controls.enableDamping = true;
     this.controls.maxPolarAngle = Math.PI * 0.49;
     this.controls.enabled = false;
+    this.controls.addEventListener("change", () => {
+      if (this.cameraMode === "broadcast") this.dirty = true;
+    });
 
     this.scene.background = new THREE.Color(HORIZON);
     this.scene.fog = new THREE.FogExp2(HORIZON, 0.018);
