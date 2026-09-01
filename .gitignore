@@ -10,3 +10,5 @@ coverage/
 *.blend1
 *.blend2
 __pycache__/
+.vercel
+.env*

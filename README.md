@@ -6,6 +6,8 @@ Solari Agent Arena turns the existing Robot-3D-Sim open-field trainer into a foc
 
 The distinction is visible before the first run: **Local Preview is non-isolated and non-authoritative. Isolated Evaluation can issue evidence only after a real Sandbox run and confirmed teardown.**
 
+**Live demo:** [solari-agent-arena.vercel.app](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid.solari-run.json) · **Frozen proof:** [`assertions.json`](evidence/e2e/b1706f4c-95e6-4245-85e9-6674f97834bb/assertions.json)
+
 ## Trust boundary
 
 The original controller is compiled with `new Function` inside a same-origin Web Worker. Its 80 ms step watchdog can terminate a hung worker and keep the UI responsive, but a Worker still has browser-origin capabilities, compilation itself was unbounded, and requestAnimationFrame/Worker scheduling affects action timing. It is not a security boundary and it cannot issue an authoritative result.
@@ -76,11 +78,11 @@ See [docs/EVIDENCE_CONTRACT.md](docs/EVIDENCE_CONTRACT.md) and [`src/evidence/co
 
 | Case | Expected boundary result | Targeted local proof | Retained Solari evidence |
 |---|---|---|---|
-| Valid controller | Normal completion; 4/4 checkpoints; deterministic telemetry hash for identical seed | `arena-runner.test.ts` repeats seed 42 and compares full metrics/hash | **SOLARI_PASS** — [`valid.solari-run.json`](public/evidence/valid.solari-run.json); Browser proof pending |
+| Valid controller | Normal completion; 4/4 checkpoints; deterministic telemetry hash for identical seed | `arena-runner.test.ts` repeats seed 42 and compares full metrics/hash | **SOLARI_PASS + BROWSER_PASS** — [`valid.solari-run.json`](public/evidence/valid.solari-run.json); [`assertions.json`](evidence/e2e/b1706f4c-95e6-4245-85e9-6674f97834bb/assertions.json) |
 | Hanging controller | QuickJS interrupt; bounded timeout; Sandbox killed; next valid run unaffected | Infinite loop exits runner with code 124 | **SOLARI_PASS** — [`hanging.solari-run.json`](public/evidence/hanging.solari-run.json) |
 | Capability attempt | QuickJS has no `process`; contained ReferenceError maps to `capability_violation` | Benign `process.exit(17)` probe fails inside only the sealed runner | **SOLARI_PASS** — [`capability-attempt.solari-run.json`](public/evidence/capability-attempt.solari-run.json) |
 
-The live SDK sequence completed on 2026-09-01: valid → hanging → capability attempt → valid again. Both valid runs produced telemetry hash `3147f1eb…d35cfe`, and every Sandbox reported confirmed teardown. See the checked-in [`qualification-summary.json`](public/evidence/qualification-summary.json). Solari Browser deployment proof remains a separate pending gate, tracked in [docs/QUALIFICATION.md](docs/QUALIFICATION.md).
+The live SDK sequence completed on 2026-09-01: valid → hanging → capability attempt → valid again. Both valid runs produced telemetry hash `3147f1eb…d35cfe`, and every Sandbox reported confirmed teardown. See the checked-in [`qualification-summary.json`](public/evidence/qualification-summary.json). A recording-enabled Solari Browser then verified the production deployment at commit `ab134077d1ab861ef3ab314681db0ee5511c7f8d`, including every rendered evidence field and replay completion. The retained proof bundle contains assertions, screenshots, hashes, and rrweb session evidence; see [docs/QUALIFICATION.md](docs/QUALIFICATION.md).
 
 ## Solari Browser is a verifier
 
@@ -130,7 +132,7 @@ npm run qualify:local
 
 ## Deployment
 
-The app targets Vercel because an authenticated Node function is required. Set these encrypted server-side environment variables in Vercel:
+The app targets Vercel because an authenticated Node function is required. The public deployment is [solari-agent-arena.vercel.app](https://solari-agent-arena.vercel.app). Set these encrypted server-side environment variables in Vercel:
 
 ```text
 SOLARI_API_KEY=slr_live_...
