@@ -66,3 +66,13 @@ Fresh final Grok session `01a05d32-b99f-7ab2-a7da-17339d66b6e2` reported:
 - No concrete legitimate issue remains under the acceptance standard; submission quality is effectively **10/10**.
 
 The first reviewer pass also raised an MCP wait-on-hidden-control bug, reserved built-in course-ID replacement, missing prompt budgets, import-label escaping, clipboard fallback, overlay focus/inert handling, mobile authority labels, and misleading local-course status copy. Each legitimate finding was fixed and covered by targeted tests or browser inspection. A later broad headless retry exhausted its turn budget reading files and returned no verdict; it was not counted as approval.
+
+## New-task connection review — effectively 10/10
+
+A real fresh Luna task exposed a missing product prerequisite: pasted mission text cannot attach an unconfigured local MCP server or inherit an unrelated Safari tab. The fix adds an idempotent `npm run setup:codex` connector, same-name project configuration, explicit copied-prompt preflight/restart guidance, and MCP server initialization instructions. The installer never copies or logs the Solari key and refuses to overwrite a conflicting entry.
+
+Grok session `01a05d46-1779-75d1-a820-55b26537c5a2` reported `RELEASE` with no Critical, High, or material Medium findings. Its only Low was the platform-required restart. After a clean ephemeral Luna task successfully called open → observe → close and the production seven-tool verifier completed 5/5 with retained hashes, fresh session `01a05d4a-492f-7201-80da-bdd987c82e6d` concluded:
+
+- No legitimate Critical/High/Medium remains.
+- The restart is explicit and unavoidable, not a product defect.
+- **`RELEASE` — effectively 10/10 for scope.**

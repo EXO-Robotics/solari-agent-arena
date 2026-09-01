@@ -11,7 +11,7 @@ Evidence states are intentionally explicit:
 |---|---|---|---|---|
 | Agent tool clock | `LOCAL_PASS` — observe, wait one wall second, observe; simulated time stayed fixed | Not applicable; browser tool behavior | `BROWSER_PASS` — 750 ms wall delay left displayed simulation time at 0.00 s | `evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/assertions.json` |
 | Fresh Codex/Luna connection | `LOCAL_PASS` — a new ephemeral Luna task loaded the globally registered stdio server, called open → observe → close, and required neither shell nor a pre-opened tab | Not applicable; connection transport only | `BROWSER_PASS` transport — `arena_open` launched and closed a recording-enabled Solari Browser; replay retention was deliberately disabled for this connection check | `evidence/codex-connection/luna-clean-task.json` |
-| Local-model MCP transport | `LOCAL_PASS` — real stdio MCP handshake listed seven tools, proved reset and an exact 800 ms action, then completed the 21-action 5/5 course with the canonical transcript | Not applicable; connection transport only | `BROWSER_PASS` transport — bridge launched recording-enabled Solari Browser against production and retained its session; not a scoring claim | `evidence/mcp/f12ed8d5ce46c410/assertions.json` |
+| Local-model MCP transport | `LOCAL_PASS` — real stdio MCP handshake listed seven tools, proved reset and an exact 800 ms action, then completed the 21-action 5/5 course with the canonical transcript | Not applicable; connection transport only | `BROWSER_PASS` transport — bridge launched recording-enabled Solari Browser against production and retained its session; not a scoring claim | `evidence/mcp/d59de0c17b2b481c/assertions.json` |
 | Valid agent transcript, seed 42 | `LOCAL_PASS` — deterministic, 5/5, 21 actions, 26.124 s, zero collisions | `SOLARI_PASS` — two fresh Sandboxes produced identical metrics and telemetry hash `f87f2653…71dfbcf`; teardown confirmed | `BROWSER_PASS` — numeric UI completed 5/5 with exact transcript; all artifact fields matched; replay `COMPLETE` | `public/evidence/valid-agent.solari-run.json`; `public/evidence/agent-qualification-summary.json`; `evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/assertions.json` |
 | Valid controller, seed 42 | `LOCAL_PASS` — deterministic hash/metrics, 4/4, zero collisions | `SOLARI_PASS` — succeeded, result `2704f608…f74dd2c0` | `BROWSER_PASS` — all evidence fields matched; replay reached `COMPLETE` | `public/evidence/valid.solari-run.json`; `evidence/e2e/b1706f4c-95e6-4245-85e9-6674f97834bb/assertions.json` |
 | Hanging controller | `LOCAL_PASS` — QuickJS interrupt, exit 124 | `SOLARI_PASS` — timeout, teardown confirmed, result `1ec51d60…38987f47` | Not applicable to empty replay | `public/evidence/hanging.solari-run.json` |
@@ -53,9 +53,9 @@ The final embodied-agent production proof was re-run against deployed course-fir
 
 The local-model stdio MCP bridge was independently exercised against the same production deployment. The retained proof includes seven-tool discovery, reset, zero-cost observation, an exact 800 ms action boundary, a full 21-action 5/5 course with zero collisions, the canonical transcript, final screenshot, and rrweb/hash receipt:
 
-- [`MCP assertions.json`](../evidence/mcp/f12ed8d5ce46c410/assertions.json)
-- [`MCP receipt.json`](../evidence/mcp/f12ed8d5ce46c410/receipt.json)
-- [`MCP final.png`](../evidence/mcp/f12ed8d5ce46c410/final.png)
+- [`MCP assertions.json`](../evidence/mcp/d59de0c17b2b481c/assertions.json)
+- [`MCP receipt.json`](../evidence/mcp/d59de0c17b2b481c/receipt.json)
+- [`MCP final.png`](../evidence/mcp/d59de0c17b2b481c/final.png)
 
 The deployed root now opens on the course-first onboarding surface. A production browser inspection confirmed the official/practice authority labels, course selection controls, import affordance, downloadable template, and the primary `COPY PROMPT & ENTER ARENA` action. Retained visual proof: [`course-first-onboarding.png`](../evidence/ux/course-first-onboarding.png).
 
