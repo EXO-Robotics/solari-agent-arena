@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import { evaluateInSolari } from "../server/lib/solari-evaluator.mjs";
 
 const apiKey = process.env.SOLARI_API_KEY;
@@ -41,7 +41,7 @@ for (const item of cases) {
   await writeFile(path, `${JSON.stringify(run, null, 2)}\n`, { mode: 0o644 });
   completed.push({
     case: item.name,
-    path,
+    path: relative(process.cwd(), path),
     status: run.outcome.status,
     resultHash: run.resultHash,
     telemetryHash: run.telemetry.hash,

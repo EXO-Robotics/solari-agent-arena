@@ -1,0 +1,40 @@
+{
+  "generatedAt": "2026-09-01T10:34:11.815Z",
+  "schemaVersion": "solari.arena.qualification.v1",
+  "seed": 42,
+  "hostRecoveryProvedBy": "valid-after-failures",
+  "cases": [
+    {
+      "case": "valid",
+      "path": "public/evidence/valid.solari-run.json",
+      "status": "succeeded",
+      "resultHash": "2704f608b60bf010ae5235bada843765170e35e2a960d9fd4f79dc12f74dd2c0",
+      "telemetryHash": "3147f1ebe1ef4070ac8168ceed35fd53d1c95799d3a6c787701fc145b2d35cfe",
+      "sandboxTerminated": true
+    },
+    {
+      "case": "hanging",
+      "path": "public/evidence/hanging.solari-run.json",
+      "status": "timeout",
+      "resultHash": "1ec51d6029b81d86f632c8c704079f1bdc5597b6320a494bddf4d93b38987f47",
+      "telemetryHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "sandboxTerminated": true
+    },
+    {
+      "case": "capability-attempt",
+      "path": "public/evidence/capability-attempt.solari-run.json",
+      "status": "rejected",
+      "resultHash": "2e433ca7a58b41a0766ff25d48926985f2b48cb3c8523f58406b468aaeb73bc6",
+      "telemetryHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "sandboxTerminated": true
+    },
+    {
+      "case": "valid-after-failures",
+      "path": "public/evidence/valid-after-failures.solari-run.json",
+      "status": "succeeded",
+      "resultHash": "c303aef7783fdaff5e9f2dba396ccbd0bcc2335259b0b636d83d6806f490b0d5",
+      "telemetryHash": "3147f1ebe1ef4070ac8168ceed35fd53d1c95799d3a6c787701fc145b2d35cfe",
+      "sandboxTerminated": true
+    }
+  ]
+}

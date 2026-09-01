@@ -76,11 +76,11 @@ See [docs/EVIDENCE_CONTRACT.md](docs/EVIDENCE_CONTRACT.md) and [`src/evidence/co
 
 | Case | Expected boundary result | Targeted local proof | Retained Solari evidence |
 |---|---|---|---|
-| Valid controller | Normal completion; 4/4 checkpoints; deterministic telemetry hash for identical seed | `arena-runner.test.ts` repeats seed 42 and compares full metrics/hash | **PENDING** — target: `public/evidence/valid.solari-run.json` + Browser bundle |
-| Hanging controller | QuickJS interrupt; bounded timeout; Sandbox killed; next valid run unaffected | Infinite loop exits runner with code 124 | **PENDING** — target: `public/evidence/hanging.solari-run.json` |
-| Capability attempt | QuickJS has no `process`; contained ReferenceError maps to `capability_violation` | Benign `process.exit(17)` probe fails inside only the sealed runner | **PENDING** — target: `public/evidence/capability-attempt.solari-run.json` |
+| Valid controller | Normal completion; 4/4 checkpoints; deterministic telemetry hash for identical seed | `arena-runner.test.ts` repeats seed 42 and compares full metrics/hash | **SOLARI_PASS** — [`valid.solari-run.json`](public/evidence/valid.solari-run.json); Browser proof pending |
+| Hanging controller | QuickJS interrupt; bounded timeout; Sandbox killed; next valid run unaffected | Infinite loop exits runner with code 124 | **SOLARI_PASS** — [`hanging.solari-run.json`](public/evidence/hanging.solari-run.json) |
+| Capability attempt | QuickJS has no `process`; contained ReferenceError maps to `capability_violation` | Benign `process.exit(17)` probe fails inside only the sealed runner | **SOLARI_PASS** — [`capability-attempt.solari-run.json`](public/evidence/capability-attempt.solari-run.json) |
 
-Local tests prove evaluator logic and deterministic physics on the development host. They do **not** substitute for live Solari qualification. Live artifacts and Solari Browser evidence are only checked in after real SDK runs. Current evidence status is tracked in [docs/QUALIFICATION.md](docs/QUALIFICATION.md).
+The live SDK sequence completed on 2026-09-01: valid → hanging → capability attempt → valid again. Both valid runs produced telemetry hash `3147f1eb…d35cfe`, and every Sandbox reported confirmed teardown. See the checked-in [`qualification-summary.json`](public/evidence/qualification-summary.json). Solari Browser deployment proof remains a separate pending gate, tracked in [docs/QUALIFICATION.md](docs/QUALIFICATION.md).
 
 ## Solari Browser is a verifier
 
@@ -88,7 +88,7 @@ Local tests prove evaluator logic and deterministic physics on the development h
 
 1. open the deployed artifact URL;
 2. independently hash the local authoritative artifact;
-3. compare rendered run ID, controller hash, outcome, checkpoints, score, time, collisions, telemetry hash, and result hash;
+3. compare rendered run ID, controller hash, seed, outcome, checkpoints, score, time, collisions, telemetry hash, and result hash;
 4. start replay and wait for the explicit `COMPLETE` state;
 5. retain `assertions.json`, loaded/final screenshots, the downloaded rrweb NDJSON recording, and hashes.
 

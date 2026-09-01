@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "solari.arena.run.v1",
+  "runId": "79b56956-8d8c-485b-9576-2a738e660b74",
+  "controllerHash": "0e51810a6d6e07530392461c2e11a22f27434bf97461a91b2afdfcf8caa255d7",
+  "seed": 42,
+  "execution": {
+    "provider": "solari",
+    "product": "sandbox",
+    "sdkVersion": "0.1.2",
+    "sandboxIdHash": "b2d68326cee2017c27744c4273f2a0e9605f927f0d368ea4d605113a30a11892",
+    "templateId": "base",
+    "authoritative": true,
+    "isolation": {
+      "type": "hardware-isolated-microvm",
+      "basis": "solari-product-documentation",
+      "attested": false
+    },
+    "controllerRuntime": "quickjs-wasm",
+    "simulator": "mujoco-wasm-3.12.0",
+    "runnerHash": "efb3af155b6a284a32d734a76c9837bf20616b1d856330a6083995f2a5c425e3",
+    "modelHash": "03ae3bc817fa4e748dd27e14a5cd84993994df910c2eeff412ef9bfc8b9912ec",
+    "dependencyBundleHash": "cbf0e789910f5538a0565438a1c05f7a4e4561f2b99c562deef4ec71d3de29a2",
+    "startedAt": "2026-09-01T10:34:03.271Z",
+    "completedAt": "2026-09-01T10:34:06.544Z",
+    "wallTimeMs": 3265,
+    "commandDeadlineMs": 30000,
+    "unpackDeadlineMs": 15000,
+    "sandboxIdleTimeoutMs": 90000,
+    "networkPolicy": "not-enforced-no-egress-required",
+    "attestation": "none",
+    "sandboxTerminated": true
+  },
+  "outcome": {
+    "status": "rejected",
+    "reason": "capability_violation",
+    "hostImpactAssessment": "not-measured-per-run"
+  },
+  "metrics": {
+    "checkpoints": 0,
+    "checkpointsTotal": 4,
+    "score": 0,
+    "timeSeconds": 0,
+    "collisions": 0,
+    "distanceMeters": 0,
+    "topSpeedMps": 0,
+    "energyJoules": 0
+  },
+  "telemetry": {
+    "sampleCount": 0,
+    "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "samples": []
+  },
+  "resultHash": "2e433ca7a58b41a0766ff25d48926985f2b48cb3c8523f58406b468aaeb73bc6"
+}
