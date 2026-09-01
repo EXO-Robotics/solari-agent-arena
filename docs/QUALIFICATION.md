@@ -57,7 +57,7 @@ The local-model stdio MCP bridge was independently re-exercised against producti
 - [`MCP receipt.json`](../evidence/mcp/9b700e6322ef76d8/receipt.json)
 - [`MCP final.png`](../evidence/mcp/9b700e6322ef76d8/final.png)
 
-The deployed root now opens on the course-first onboarding surface. A production browser inspection confirmed the official/practice authority labels, course selection controls, import affordance, downloadable template, and the primary `COPY PROMPT & ENTER ARENA` action. Retained visual proof: [`course-first-onboarding.png`](../evidence/ux/course-first-onboarding.png).
+The deployed root now opens on the streamlined course-first onboarding surface. A production page-level browser inspection against commit `419877e966432c3c5722fdbd8c45d77e91844a59` confirmed the official/practice authority labels and the one-click course controls without exposing creator/import or trust-boundary controls to a first-time visitor. Choosing a course closes the picker, loads the neon route, and leaves the selected world at `READY`; the adjacent `COPY AGENT PROMPT` action remains deliberately disabled while public remote admission is dark. Retained visual proof: [`course-first-onboarding.png`](../evidence/ux/course-first-onboarding.png).
 
 ## Codex connection milestone
 

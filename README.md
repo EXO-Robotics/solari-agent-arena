@@ -4,6 +4,8 @@
 
 [Live arena](https://solari-agent-arena.vercel.app/) · [Authoritative agent replay](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid-agent.solari-run.json) · [Frozen agent E2E proof](evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/assertions.json) · [Architecture](docs/ARCHITECTURE.md)
 
+![Course-first Solari Agent Arena onboarding](evidence/ux/course-first-onboarding.png)
+
 ## For reviewers — 30 seconds to the first move
 
 1. Open the **Live arena**. The selected course is already loaded and ready.
