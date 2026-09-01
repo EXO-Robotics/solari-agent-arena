@@ -379,9 +379,11 @@ export class App {
     this.renderTrustState();
     if (mode === "isolated") {
       if (this.session.phase === "running") this.session.pause();
+      this.setTelemetryPresentation("recorded");
       this.selectPanel(this.authoritativeRun ? "evidence" : "code");
     } else {
       this.replayPlaying = false;
+      this.setTelemetryPresentation("live");
       this.selectPanel("lab");
       this.reset();
     }
@@ -409,6 +411,27 @@ export class App {
     detail.textContent = integrityChecked
       ? "Hashes are self-consistent and the file came from this deployment. Issuer authenticity is not cryptographically signed."
       : "Authority exists only after the server returns a valid Solari run and this browser checks its hashes.";
+    this.renderIsolatedRunState();
+  }
+
+  private renderIsolatedRunState(): void {
+    if (this.mode !== "isolated") return;
+    const replayState = this.requireElement("#replay-state").dataset.state;
+    const state = this.evaluationState === "pending"
+      ? { label: "EVALUATING", dot: "running" }
+      : this.evaluationState === "failed"
+        ? { label: "FAILED", dot: "fallen" }
+        : this.evaluationState === "integrityChecked"
+          ? ({
+              ready: { label: "READY", dot: "ready" },
+              playing: { label: "REPLAYING", dot: "running" },
+              paused: { label: "PAUSED", dot: "paused" },
+              complete: { label: "COMPLETE", dot: "ready" },
+              unavailable: { label: "NO REPLAY", dot: "paused" },
+            }[replayState ?? ""] ?? { label: "READY", dot: "ready" })
+          : { label: "ISOLATED", dot: "paused" };
+    this.requireElement("#phase-label").textContent = state.label;
+    this.requireElement("#phase-dot").className = `status-dot status-dot--${state.dot}`;
   }
 
   private clearEvidence(): void {
@@ -523,13 +546,41 @@ export class App {
     const replayButton = this.requireElement("#replay-button") as HTMLButtonElement;
     replayButton.disabled = state === "unavailable";
     replayButton.textContent = state === "playing" ? "PAUSE REPLAY" : state === "complete" ? "REPLAY AGAIN" : state === "unavailable" ? "NO REPLAY FOR THIS OUTCOME" : "PLAY INTEGRITY-CHECKED REPLAY";
+    this.renderIsolatedRunState();
   }
 
   private renderReplayFrame(frame: SensorFrame): void {
     this.requireElement("#metric-time").textContent = frame.time.toFixed(3);
     this.requireElement("#metric-speed").textContent = Math.max(0, frame.velocity).toFixed(2);
+    this.requireElement("#metric-distance").textContent = frame.position.toFixed(2);
+    this.requireElement("#metric-energy").textContent = ((this.authoritativeRun?.metrics.energyJoules ?? 0) / 1000).toFixed(2);
     this.requireElement("#coord-x").textContent = frame.position.toFixed(1);
     this.requireElement("#coord-y").textContent = frame.lateral.toFixed(1);
+    this.requireElement("#speed-line").setAttribute("points", this.replayPoints((sample) => Math.max(0, sample.frame.velocity)));
+    this.requireElement("#pitch-line").setAttribute("points", this.replayPoints((sample) => sample.frame.imu.pitch));
+  }
+
+  private replayPoints(value: (sample: AuthoritativeRun["telemetry"]["samples"][number]) => number): string {
+    const samples = this.authoritativeRun?.telemetry.samples;
+    if (!samples?.length) return "";
+    const values = samples.map(value);
+    const minimum = Math.min(...values);
+    const maximum = Math.max(...values);
+    const span = Math.max(1e-9, maximum - minimum);
+    const denominator = Math.max(1, samples.length - 1);
+    return samples.slice(0, this.replayIndex + 1).map((sample, index) => {
+      const x = (index / denominator) * 360;
+      const y = 74 - ((value(sample) - minimum) / span) * 74;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    }).join(" ");
+  }
+
+  private setTelemetryPresentation(mode: "live" | "recorded"): void {
+    const recorded = mode === "recorded";
+    this.requireElement("#metric-distance-label").textContent = recorded ? "RECORDED X / M" : "EXPLORED / M";
+    this.requireElement("#metric-energy-label").textContent = recorded ? "RUN ENERGY / KJ" : "ENERGY / KJ";
+    this.requireElement("#speed-chart-mode").textContent = recorded ? "RECORDED" : "LIVE";
+    this.requireElement("#pitch-chart-mode").textContent = recorded ? "RECORDED" : "RAD";
   }
 
   private renderEvidence(run: AuthoritativeRun): void {
@@ -599,7 +650,7 @@ export class App {
         <header class="topbar">
           <div class="brand"><span class="brand__mark">SA</span><span>SOLARI AGENT ARENA</span></div>
           <div class="event-title"><span>ROBOT CONTROLLER EVALUATION</span><strong>PREVIEW FAST / JUDGE IN ISOLATION</strong></div>
-          <div class="system-state"><span id="phase-dot" class="status-dot status-dot--loading"></span><span id="phase-label">LOADING</span><small>MUJOCO 3.12 / WASM</small></div>
+          <div class="system-state"><span id="phase-dot" class="status-dot status-dot--loading"></span><span id="phase-label" data-testid="phase-label">LOADING</span><small>MUJOCO 3.12 / WASM</small></div>
         </header>
 
         <section class="trust-switch" aria-label="Evaluation trust boundary">
@@ -703,11 +754,11 @@ export class App {
           <div class="metrics">
             <div><span>TIME / S</span><strong id="metric-time">0.000</strong></div>
             <div><span>SPEED / M·S⁻¹</span><strong id="metric-speed">0.00</strong></div>
-            <div><span>EXPLORED / M</span><strong id="metric-distance">0.00</strong></div>
-            <div><span>ENERGY / KJ</span><strong id="metric-energy">0.00</strong></div>
+            <div><span id="metric-distance-label">EXPLORED / M</span><strong id="metric-distance">0.00</strong></div>
+            <div><span id="metric-energy-label">ENERGY / KJ</span><strong id="metric-energy">0.00</strong></div>
           </div>
-          <div class="chart"><div class="chart__label"><span>VELOCITY</span><small>LIVE</small></div><svg viewBox="0 0 360 74" preserveAspectRatio="none"><path d="M0 18H360M0 37H360M0 56H360"/><polyline id="speed-line" points=""/></svg></div>
-          <div class="chart"><div class="chart__label"><span>BODY PITCH</span><small>RAD</small></div><svg viewBox="0 0 360 74" preserveAspectRatio="none"><path d="M0 18H360M0 37H360M0 56H360"/><polyline id="pitch-line" points=""/></svg></div>
+          <div class="chart"><div class="chart__label"><span>VELOCITY</span><small id="speed-chart-mode">LIVE</small></div><svg viewBox="0 0 360 74" preserveAspectRatio="none"><path d="M0 18H360M0 37H360M0 56H360"/><polyline id="speed-line" points=""/></svg></div>
+          <div class="chart"><div class="chart__label"><span>BODY PITCH</span><small id="pitch-chart-mode">RAD</small></div><svg viewBox="0 0 360 74" preserveAspectRatio="none"><path d="M0 18H360M0 37H360M0 56H360"/><polyline id="pitch-line" points=""/></svg></div>
           <div class="run-controls"><button id="power-button" class="button button--power">POWER ON</button><button id="reset-button" class="button button--quiet">RESET</button><button id="run-button" class="button button--accent">ENTER FIELD</button></div>
         </section>
       </div>

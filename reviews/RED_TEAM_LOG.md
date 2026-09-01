@@ -51,4 +51,19 @@ Deferred Lows: the three canonical JSON implementations are deliberately indepen
 
 ## Pass 3
 
-Pending live Solari qualification, deployment, and Browser proof.
+Grok session `01a05c96-780b-78c3-a6d1-a35244bb3069` reviewed the published live-state artifacts read-only after the Sandbox qualification, Vercel deployment, and recording-enabled Browser proof. Verdict: **no legitimate Critical, High, or Medium findings**; architecture confidence high; Solari materially improves Robot-3D-Sim. Score: **9.5 / 10**.
+
+Accepted Low findings:
+
+- isolated replay skipped the normal session-state renderer, leaving the global chrome at `LOADING`; isolated state now explicitly reports `EVALUATING`, `READY`, `REPLAYING`, `PAUSED`, `COMPLETE`, failure, and unavailable states;
+- replay HUD labels implied live data and left charts blank; replay now labels recorded/final metrics honestly and renders the recorded velocity/pitch traces;
+- this red-team log was stale after live proof; Pass 3 is now closed here.
+
+Rejected or retained Low findings:
+
+- the prior Browser proof correctly names deployed commit `ab134077`; commit `fc5bb88` was the later deploy-then-retain-proof commit, so this is an evidence-chain distinction rather than a mismatch;
+- score rendering is not locale-dependent in this verifier because both the UI and verifier explicitly call `toLocaleString("en-US")`;
+- three independent canonicalizers remain a maintenance residual with shared-order tests plus server and live Browser re-validation;
+- one in-flight evaluation per warm instance is an explicitly documented abuse backstop, not a global quota; public evaluation remains disabled by default.
+
+The accepted UI fixes require a refreshed production deployment and Browser proof before final signoff.

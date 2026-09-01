@@ -50,11 +50,15 @@ try {
   for (const [field, value] of Object.entries(expected)) {
     if (observations[field] !== value) throw new Error(`${field} mismatch: expected ${value}, observed ${observations[field]}`);
   }
+  observations.phaseBeforeReplay = (await page.getByTestId("phase-label").innerText()).trim();
+  if (observations.phaseBeforeReplay !== "READY") throw new Error(`Expected READY phase before replay, observed ${observations.phaseBeforeReplay}`);
   await page.screenshot({ path: join(evidenceDir, "loaded.png"), fullPage: true });
   await page.getByRole("button", { name: "PLAY INTEGRITY-CHECKED REPLAY" }).click();
   await page.waitForFunction(() => document.querySelector('[data-testid="replay-state"]')?.getAttribute("data-state") === "complete", null, { timeout: 30_000 });
   observations.replayState = (await page.getByTestId("replay-state").innerText()).trim();
   if (observations.replayState !== "COMPLETE") throw new Error("Replay did not complete.");
+  observations.phaseAfterReplay = (await page.getByTestId("phase-label").innerText()).trim();
+  if (observations.phaseAfterReplay !== "COMPLETE") throw new Error(`Expected COMPLETE phase after replay, observed ${observations.phaseAfterReplay}`);
   await page.screenshot({ path: join(evidenceDir, "replay-complete.png"), fullPage: true });
 } finally {
   await browser.close();
