@@ -34,9 +34,11 @@ describe("course library", () => {
   });
 
   it("binds the First Steps mission to its exact HTTP capability", () => {
-    const prompt = buildAgentPrompt(COURSE_CATALOG[1]!, 42, "first-steps-ticket", "state-v1");
+    const prompt = buildAgentPrompt(COURSE_CATALOG[1]!, 42, "first-steps-ticket", "state-v1", "https://preview.example/api/arena-command");
     expect(prompt).toContain('\"schemaVersion\":\"solari.arena.http-command.v1\",\"operation\":\"connect\",\"ticket\":\"first-steps-ticket\"');
     expect(prompt).toContain("courseId=practice-first-steps-v1");
+    expect(prompt).toContain("https://preview.example/api/arena-command");
+    expect(prompt).not.toContain("https://solari-agent-arena.vercel.app/api/arena-command");
   });
 
   it("keeps checkpoint coordinates out of the vision mission", () => {

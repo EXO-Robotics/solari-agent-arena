@@ -2,9 +2,15 @@ import type { CourseListing } from "./courseCatalog";
 
 export type RemoteTrack = "state-v1" | "vision-v1";
 
-const COMMAND_ENDPOINT = "https://solari-agent-arena.vercel.app/api/arena-command";
+const DEFAULT_COMMAND_ENDPOINT = "https://solari-agent-arena.vercel.app/api/arena-command";
 
-export function buildAgentPrompt(listing: CourseListing, seed: number, pairingTicket: string, track: RemoteTrack): string {
+export function buildAgentPrompt(
+  listing: CourseListing,
+  seed: number,
+  pairingTicket: string,
+  track: RemoteTrack,
+  commandEndpoint = DEFAULT_COMMAND_ENDPOINT,
+): string {
   const course = listing.course;
   const stateTrack = track === "state-v1";
   const checkpoints = stateTrack
@@ -18,10 +24,10 @@ You are controlling the humanoid robot in a live, recorded Solari Agent Arena pr
 
 ACCESS
 Use your shell or ordinary HTTPS-request capability. POST JSON to:
-${COMMAND_ENDPOINT}
+${commandEndpoint}
 Set Content-Type: application/json. The complete short-lived connection command is:
 
-curl --silent --show-error --fail-with-body -X POST -H 'content-type: application/json' --data-raw '${connectBody}' '${COMMAND_ENDPOINT}'
+curl --silent --show-error --fail-with-body -X POST -H 'content-type: application/json' --data-raw '${connectBody}' '${commandEndpoint}'
 
 Run that command now. Its JSON returns arenaSession and the first observation. Treat ticket and arenaSession as temporary secrets: use them only for this run and do not repeat them in your final answer. If you truly have neither shell nor HTTPS capability, report ARENA_HTTP_UNAVAILABLE. A successful HTTP response is required before claiming the run started.
 

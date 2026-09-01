@@ -1098,7 +1098,13 @@ export class App {
       const connected = await this.connectRemoteAgent();
       if (!connected || !this.remotePairing) return;
     }
-    const prompt = buildAgentPrompt(this.activeCourse, seed, this.remotePairing.ticket, this.remoteTrack);
+    const prompt = buildAgentPrompt(
+      this.activeCourse,
+      seed,
+      this.remotePairing.ticket,
+      this.remoteTrack,
+      `${window.location.origin}/api/arena-command`,
+    );
     const button = this.requireElement(closeAfterCopy ? "#start-copy" : "#mission-copy");
     const restingLabel = closeAfterCopy ? "CREATE RUN + COPY PROMPT ↗" : button.textContent;
     try {
