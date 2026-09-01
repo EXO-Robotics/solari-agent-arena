@@ -66,6 +66,8 @@ The browser course library has three states:
 
 Local imports are checkpoint-route manifests, not arbitrary MuJoCo or JavaScript uploads. They are size/range/count validated in the browser and never reach the authoritative evaluator. A future community registry needs immutable course IDs/versions, moderation, bounded geometry, server-side validation, and a course hash in the authority bundle before uploaded level designs can produce comparable scores.
 
+For the standard MCP path, a built-in selection is explicit and fail closed: the copied mission passes an allow-listed `courseId` to `arena_open`, the bridge creates a normalized same-origin `?agent=1&course=...` URL, the page selects that built-in before MuJoCo loads, and the agent must match the first observation's `courseId` before acting. Local imports are not silently substituted because their manifests exist only in the importing tab.
+
 ## Boundary inventory
 
 | Boundary | What it guarantees | What it does not guarantee |

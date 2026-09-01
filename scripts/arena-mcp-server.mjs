@@ -1,12 +1,15 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { Solari } from "@solarisdk/browser";
 import * as z from "zod/v4";
 import { canonicalJson } from "../server/lib/evidence.mjs";
-import { DEFAULT_ARENA_URL, resolveArenaUrl } from "../server/lib/arena-url.mjs";
+import { BUILT_IN_COURSE_IDS, DEFAULT_ARENA_URL, resolveArenaUrl } from "../server/lib/arena-url.mjs";
+
+const REPOSITORY_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 function hash(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -19,9 +22,9 @@ class ArenaBrowser {
   url;
   startedAt;
 
-  async open(url = process.env.ARENA_URL || DEFAULT_ARENA_URL, seed = 42) {
+  async open(url = process.env.ARENA_URL || DEFAULT_ARENA_URL, seed = 42, courseId = BUILT_IN_COURSE_IDS[0]) {
     if (!process.env.SOLARI_API_KEY) throw new Error("SOLARI_API_KEY is required by the local MCP bridge.");
-    const target = resolveArenaUrl(url);
+    const target = resolveArenaUrl(url, process.env.ARENA_URL || DEFAULT_ARENA_URL, courseId);
     await this.close(false);
     this.client = new Solari({ apiKey: process.env.SOLARI_API_KEY });
     this.browser = await this.client.launch({ recording: true });
@@ -93,7 +96,7 @@ class ArenaBrowser {
     this.client = undefined;
     this.page = undefined;
     if (!retainEvidence) return { closed: true, evidenceDirectory: null };
-    const directory = join(process.cwd(), "evidence", "agent-sessions", hash(sessionId).slice(0, 16));
+    const directory = join(REPOSITORY_ROOT, "evidence", "agent-sessions", hash(sessionId).slice(0, 16));
     await mkdir(directory, { recursive: true });
     if (transcript) await writeFile(join(directory, "transcript.json"), `${JSON.stringify(transcript, null, 2)}\n`);
     if (screenshot) await writeFile(join(directory, "final.png"), screenshot);
@@ -132,16 +135,17 @@ const visualResult = async (value) => {
 function buildServer() {
   const server = new McpServer({ name: "solari-agent-arena", version: "1.0.0" }, {
     capabilities: { tools: {} },
-    instructions: "Robot benchmark tools. Start every new mission with arena_open({seed})—it launches the deployed arena, so no pre-opened Safari tab is needed. Then repeat arena_observe or arena_look → one bounded arena_act → inspect returned state until complete. Finish with arena_transcript and arena_close. Observing and thinking cost zero simulated time. Never invent tool results.",
+    instructions: "Robot benchmark tools. Start every new mission with arena_open({seed, courseId})—it launches the selected built-in course, so no pre-opened Safari tab is needed. Verify the returned courseId before acting. Then repeat arena_observe or arena_look → one bounded arena_act → inspect returned state until complete. Finish with arena_transcript and arena_close. Observing and thinking cost zero simulated time. Never invent tool results.",
   });
   server.registerTool("arena_open", {
     title: "Open Solari Agent Arena",
     description: "Launch a recording-enabled Solari Browser, open the robot benchmark, reset it, and return the first observation plus screenshot.",
     inputSchema: z.object({
       seed: z.number().int().min(0).max(0xffff_ffff).default(42),
+      courseId: z.enum(BUILT_IN_COURSE_IDS).default(BUILT_IN_COURSE_IDS[0]),
       url: z.string().url().optional(),
     }),
-  }, async ({ seed, url }) => visualResult(await arena.open(url, seed)));
+  }, async ({ seed, courseId, url }) => visualResult(await arena.open(url, seed, courseId)));
   server.registerTool("arena_observe", {
     title: "Observe robot state",
     description: "Read structured robot state without advancing simulated time.",

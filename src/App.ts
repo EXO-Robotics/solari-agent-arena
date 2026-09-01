@@ -60,6 +60,8 @@ export class App {
 
   async start(): Promise<void> {
     try {
+      const parameters = new URLSearchParams(location.search);
+      this.selectCourseFromUrl(parameters.get("course"));
       this.setBoot("Loading 10 MB physics core", 28);
       this.engine = await MujocoEngine.create(PHYSICS_MODEL_XML);
       this.setBoot("Binding visual model", 62);
@@ -73,7 +75,6 @@ export class App {
       this.previousFrameTime = performance.now();
       await this.loadEvidenceFromUrl();
       this.installAgentToolApi();
-      const parameters = new URLSearchParams(location.search);
       if (!parameters.has("evidence")) {
         this.setMode("agent");
         if (parameters.get("agent") !== "1") this.openStartScreen();
@@ -957,6 +958,16 @@ export class App {
     this.agentTrial.configureCourse(listing.course);
     this.scene?.configureAgentCourse(listing.course.checkpoints);
     if (this.engine) this.resetAgentTrial(Number(this.requireInput("#agent-seed").value));
+    this.renderCourseLibrary();
+    this.renderMissionSummary();
+  }
+
+  private selectCourseFromUrl(courseId: string | null): void {
+    if (!courseId) return;
+    const listing = this.courseListings.find((candidate) => candidate.source !== "imported" && candidate.course.courseId === courseId);
+    if (!listing) throw new Error(`Unknown or non-transferable courseId: ${courseId}`);
+    this.activeCourse = listing;
+    this.agentTrial.configureCourse(listing.course);
     this.renderCourseLibrary();
     this.renderMissionSummary();
   }

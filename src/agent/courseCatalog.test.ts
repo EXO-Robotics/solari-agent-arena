@@ -29,5 +29,14 @@ describe("course library", () => {
     expect(prompt).toContain("npm run setup:codex");
     expect(prompt).toContain("a Safari tab is not shared");
     expect(prompt).toContain("ARENA_TOOLS_MISSING");
+    expect(prompt).toContain('arena_open({"seed":42,"courseId":"arena-slalom-ramp-v1"})');
+    expect(prompt).toContain("ARENA_COURSE_MISMATCH");
+  });
+
+  it("does not claim the MCP bridge can reconstruct local imports", () => {
+    const listing = parseImportedCourse({ schemaVersion: "solari.arena.course.v1", courseId: "my-route-v1", maxSeconds: 30, maxActions: 50, maxActionDurationMs: 1500, maxDrive: 1.2, maxTurn: 1, checkpoints: [{ id: "a", x: 2, y: 0, radius: 1 }, { id: "b", x: 4, y: 1, radius: 1 }] });
+    const prompt = buildAgentPrompt(listing);
+    expect(prompt).toContain("ARENA_IMPORTED_COURSE_LOCAL_ONLY");
+    expect(prompt).not.toContain('arena_open({"seed":42,"courseId":"my-route-v1"})');
   });
 });

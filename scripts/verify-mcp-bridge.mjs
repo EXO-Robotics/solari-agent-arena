@@ -47,8 +47,15 @@ try {
   const names = listed.tools.map((tool) => tool.name).sort();
   const expected = ["arena_act", "arena_close", "arena_look", "arena_observe", "arena_open", "arena_reset", "arena_transcript"];
   if (JSON.stringify(names) !== JSON.stringify(expected)) throw new Error(`MCP tool list mismatch: ${names.join(",")}`);
-  const opened = await callTool("arena_open", { seed: 42 });
+  const practiceSelection = await callTool("arena_open", { seed: 42, courseId: "practice-first-steps-v1" });
   arenaOpened = true;
+  if (practiceSelection.courseId !== "practice-first-steps-v1" || practiceSelection.checkpoints.total !== 3 || practiceSelection.checkpoints.nextId !== "first-gate") {
+    throw new Error(`MCP course selection mismatch: ${JSON.stringify(practiceSelection)}`);
+  }
+  await callTool("arena_close", { retainEvidence: false });
+  arenaOpened = false;
+  arenaOpened = true;
+  const opened = await callTool("arena_open", { seed: 42, courseId: "arena-slalom-ramp-v1" });
   const before = await callTool("arena_observe");
   await new Promise((resolve) => setTimeout(resolve, 750));
   const after = await callTool("arena_observe");
@@ -74,7 +81,7 @@ try {
   await copyFile(join(closed.evidenceDirectory, "receipt.json"), join(proofDir, "receipt.json"));
   await writeFile(join(proofDir, "assertions.json"), `${JSON.stringify({
     schemaVersion: "solari.arena.mcp-proof.v1", completedAt: new Date().toISOString(), tools: names,
-    zeroCostObservation: true, boundaryAction, resetObservation, finalObservation, transcript, receipt: closed.receipt, passed: true,
+    courseSelection: practiceSelection, zeroCostObservation: true, boundaryAction, resetObservation, finalObservation, transcript, receipt: closed.receipt, passed: true,
   }, null, 2)}\n`);
   console.log(`MCP bridge verification passed: ${proofDir}`);
 } finally {

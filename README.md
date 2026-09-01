@@ -82,7 +82,7 @@ Codex can discover site tools only when the page is opened inside the browser su
 
 ### Local models or Codex CLI: standard MCP bridge
 
-The checked-in stdio server launches a recording-enabled Solari Browser and exposes `arena_open`, `arena_reset`, `arena_observe`, `arena_look`, `arena_act`, `arena_transcript`, and `arena_close`. `arena_reset` reuses the active Browser session, while `arena_look` and every action return both structured state and a PNG view. Closing can retain the transcript, final screenshot, rrweb replay, and hash receipt under `evidence/agent-sessions/`.
+The checked-in stdio server launches a recording-enabled Solari Browser and exposes `arena_open`, `arena_reset`, `arena_observe`, `arena_look`, `arena_act`, `arena_transcript`, and `arena_close`. Start with `arena_open({ seed, courseId })`; `courseId` is allow-listed to the three built-in versioned routes and the returned observation must match it before the agent acts. `arena_reset` reuses the active Browser session, while `arena_look` and every action return both structured state and a PNG view. Closing can retain the transcript, final screenshot, rrweb replay, and hash receipt under this repository's `evidence/agent-sessions/` directory regardless of the model host's working directory.
 
 For Codex, save the key in `.env.local`, then run the idempotent connector from the repository root:
 
@@ -93,6 +93,8 @@ npm run setup:codex
 Then restart Codex and inspect `/mcp`. The repository also contains a project-scoped `.codex/config.toml` for trusted tasks opened directly on the checkout. Codex’s official stdio/config options are documented in [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp?surface=cli). Any local model host that supports stdio MCP can use the Node command shown by `codex mcp get solari-agent-arena --json` after setup.
 
 The MCP bridge reads `SOLARI_API_KEY` only in its local Node process. The visited page never receives it. `arena_open` is origin-locked to `ARENA_URL` (production by default); set that variable deliberately to use a local or alternate deployment.
+
+Built-in course selection travels as an explicit contract: copied prompt → `arena_open.courseId` → normalized `?agent=1&course=...` URL → first observation. Arbitrary requested query strings are discarded, unknown IDs fail closed, and the copied prompt tells the agent to stop with `ARENA_COURSE_MISMATCH` if the first observation differs. Locally imported course manifests intentionally remain same-tab, non-authoritative trials; an ID alone is insufficient to reconstruct or validate their geometry through the MCP bridge.
 
 ### Safari or ordinary browser automation
 
