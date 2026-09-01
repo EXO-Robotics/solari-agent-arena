@@ -26,4 +26,3 @@ Use at most four grouped read/grep tool turns, then produce the final report by 
 - state whether submission quality is effectively 10/10;
 - identify any remaining Low-level issue, or explicitly say none blocks 10/10;
 - avoid logo-count recommendations and invented evidence.
-
