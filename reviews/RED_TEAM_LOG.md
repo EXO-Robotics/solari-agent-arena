@@ -61,9 +61,9 @@ Accepted Low findings:
 
 Rejected or retained Low findings:
 
-- the prior Browser proof correctly names deployed commit `ab134077`; commit `fc5bb88` was the later deploy-then-retain-proof commit, so this is an evidence-chain distinction rather than a mismatch;
+- the earlier Browser proof correctly named deployed commit `ab134077`; the refreshed final proof is now bound to the corrected UI deployment at `8ec6c39afa07f7460b957b91d7a9abdb489737b7`;
 - score rendering is not locale-dependent in this verifier because both the UI and verifier explicitly call `toLocaleString("en-US")`;
 - three independent canonicalizers remain a maintenance residual with shared-order tests plus server and live Browser re-validation;
 - one in-flight evaluation per warm instance is an explicitly documented abuse backstop, not a global quota; public evaluation remains disabled by default.
 
-The accepted UI fixes require a refreshed production deployment and Browser proof before final signoff.
+The accepted UI fixes were redeployed and the refreshed Browser proof passed the original field checks plus explicit global `READY` and `COMPLETE` assertions. Final independent signoff follows in Pass 4.

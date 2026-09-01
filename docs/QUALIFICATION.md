@@ -28,7 +28,7 @@ Completed 2026-09-01 with `@solarisdk/sandbox` 0.1.2 against template `base`. Th
 
 ## Production Browser milestone
 
-Completed 2026-09-01 with `@solarisdk/browser` 0.1.2 against [the production replay](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid.solari-run.json) for deployed commit `ab134077d1ab861ef3ab314681db0ee5511c7f8d`. The verifier independently matched run ID, controller hash, seed, outcome, checkpoints, score, time, collisions, telemetry hash, and result hash, then waited for replay state `COMPLETE`. Recording was enabled. Retained evidence:
+Completed 2026-09-01 with `@solarisdk/browser` 0.1.2 against [the production replay](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid.solari-run.json) for deployed commit `8ec6c39afa07f7460b957b91d7a9abdb489737b7`. The verifier independently matched run ID, controller hash, seed, outcome, checkpoints, score, time, collisions, telemetry hash, and result hash, asserted the global phase was `READY`, then waited for both replay and global phase state `COMPLETE`. Recording was enabled. Retained evidence:
 
 - [`assertions.json`](../evidence/e2e/b1706f4c-95e6-4245-85e9-6674f97834bb/assertions.json)
 - [`loaded.png`](../evidence/e2e/b1706f4c-95e6-4245-85e9-6674f97834bb/loaded.png)
