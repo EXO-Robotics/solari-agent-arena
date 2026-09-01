@@ -98,3 +98,23 @@ Fresh final Grok session `01a05d6c-fcd6-7ac2-be05-fa2cd4d1704d` reviewed the rev
 - Confidence in architecture and claim honesty is strong.
 - Solari materially improves Robot-3D-Sim.
 - **`RELEASE` — 10/10 and effectively 10/10 for this gate.**
+
+## Hosted remote MCP review — focused V1
+
+The hosted-agent change was reviewed from a sanitized copy that excluded `.env*`, `.vercel`, Git metadata, dependencies, build output, and retained evidence. Public remote execution stayed disabled throughout review and qualification.
+
+The first bounded Grok session `01a05d91-2a87-7f82-8547-5abbf104dd0a` exhausted its turn budget before a verdict. One legitimate Medium issue appeared in its partial analysis: a clipped `#viewport` screenshot can still include sibling HUD layers composited over the same rectangle, leaking WORLD X/Y on the Vision track. Accepted fix: `viewportPng()` now enables `simulation--vision-capture`; CSS hides every direct simulation child except `#viewport` and removes its overlay until the PNG completes, restoring state in `finally`.
+
+Two partial findings were rejected after code validation:
+
+- `finishPractice()` does not continue into receipt construction with undefined state after a read failure; JavaScript propagates the original exception after the `finally` release attempt. Failing without evidence is the correct fail-closed behavior.
+- Stateless MCP may return 405 for GET/SSE session operations. The installed MCP server explicitly supports stateless legacy POST exchanges, and a real initialize plus `tools/list` handshake returned the five tools. Custom-domain rejection is the intended exact Host/Origin policy, not an interoperability defect.
+
+Fresh Grok session `01a05d93-c5b2-7bb3-b86b-e555f4e7f3d2` inspected the revised capture boundary and focused contract. Final result:
+
+- Legitimate Critical: 0; High: 0; Medium: 0.
+- Overall score: **9/10** for the focused V1.
+- Solari materially improves Robot-3D-Sim: yes.
+- No material finding remains under the stated default-disabled scope.
+
+Remaining deferred public-production controls are documented product limits, not hidden claims: pairing replay protection, durable distributed action/session locks, cleanup leases, and paid-abuse rate/concurrency control. `SOLARI_REMOTE_ENABLED=false` is the release gate until those exist.

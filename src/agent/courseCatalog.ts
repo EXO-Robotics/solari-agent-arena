@@ -1,4 +1,5 @@
-import { AGENT_COURSE, type AgentCourse } from "./contract";
+import registry from "./course-registry.json";
+import type { AgentCourse } from "./contract";
 
 export interface CourseListing {
   course: AgentCourse;
@@ -10,57 +11,7 @@ export interface CourseListing {
   source: "official" | "practice" | "imported";
 }
 
-const shared = {
-  schemaVersion: "solari.arena.course.v1" as const,
-  maxActionDurationMs: 2_000,
-  maxDrive: 1.6,
-  maxTurn: 1.4,
-};
-
-export const COURSE_CATALOG: readonly CourseListing[] = [
-  {
-    course: AGENT_COURSE,
-    title: "Slalom Ramp",
-    summary: "Thread two crates, clear the ramp gate, and reach the east beacon.",
-    difficulty: "Expert",
-    author: "Solari Arena",
-    authoritative: true,
-    source: "official",
-  },
-  {
-    course: {
-      ...shared, courseId: "practice-first-steps-v1", maxSeconds: 24, maxActions: 48,
-      checkpoints: [
-        { id: "first-gate", x: 3, y: 0, radius: 1.35 },
-        { id: "wide-turn", x: 6, y: 2, radius: 1.5 },
-        { id: "home-line", x: 9, y: 0, radius: 1.5 },
-      ],
-    },
-    title: "First Steps",
-    summary: "A short three-gate route for learning the action and observation loop.",
-    difficulty: "Starter",
-    author: "Solari Arena",
-    authoritative: false,
-    source: "practice",
-  },
-  {
-    course: {
-      ...shared, courseId: "practice-east-sprint-v1", maxSeconds: 42, maxActions: 80,
-      checkpoints: [
-        { id: "launch", x: 4, y: -1.5, radius: 1.2 },
-        { id: "ramp-west", x: 9, y: -1, radius: 1.25 },
-        { id: "ramp-east", x: 13, y: 0, radius: 1.25 },
-        { id: "sprint-finish", x: 16, y: -5, radius: 1.5 },
-      ],
-    },
-    title: "East Sprint",
-    summary: "A faster line with one committed ramp approach and a hard turn home.",
-    difficulty: "Intermediate",
-    author: "Solari Arena",
-    authoritative: false,
-    source: "practice",
-  },
-];
+export const COURSE_CATALOG = registry as readonly CourseListing[];
 
 const RESERVED_COURSE_IDS = new Set(COURSE_CATALOG.map((listing) => listing.course.courseId));
 

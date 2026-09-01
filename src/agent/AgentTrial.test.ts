@@ -39,4 +39,12 @@ describe("AgentTrial", () => {
     for (let index = 0; index < 30; index += 1) trial.recordAction({ drive: 0, turn: 0, durationMs: 2_000 });
     expect(() => trial.recordAction({ drive: 0, turn: 0, durationMs: 100 })).toThrow(/time budget/);
   });
+
+  it("executes a repeated expected sequence at most once", () => {
+    const trial = new AgentTrial();
+    trial.reset(42, 0);
+    expect(trial.recordAction({ expectedSequence: 0, drive: 1, turn: 0, durationMs: 400 })).toMatchObject({ sequence: 0 });
+    expect(() => trial.recordAction({ expectedSequence: 0, drive: 1, turn: 0, durationMs: 400 })).toThrow(/Expected action sequence 1/);
+    expect(trial.transcript().actions).toHaveLength(1);
+  });
 });

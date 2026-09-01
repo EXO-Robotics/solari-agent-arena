@@ -19,30 +19,31 @@ describe("course library", () => {
   });
 
   it("builds a prompt with tools, bounds, checkpoints, and physics", () => {
-    const prompt = buildAgentPrompt(COURSE_CATALOG[0]!);
-    expect(prompt).toContain("arena_reset");
+    const prompt = buildAgentPrompt(COURSE_CATALOG[0]!, 42, "opaque-ticket", "state-v1");
+    expect(prompt).toContain("arena_connect");
     expect(prompt).toContain("arena_act");
+    expect(prompt).toContain("arena_finish");
     expect(prompt).toContain("Δt = 0.002s");
     expect(prompt).toContain("120 actions and 60s");
     expect(prompt).toContain("east-beacon");
-    expect(prompt).toContain("This pasted text does not create tools");
-    expect(prompt).toContain("npm run setup:codex");
-    expect(prompt).toContain("a Safari tab is not shared");
-    expect(prompt).toContain("ARENA_TOOLS_MISSING");
-    expect(prompt).toContain('arena_open({"seed":42,"courseId":"arena-slalom-ramp-v1"})');
-    expect(prompt).toContain("ARENA_COURSE_MISMATCH");
+    expect(prompt).toContain("This prompt cannot install or attach tools by itself");
+    expect(prompt).toContain("https://solari-agent-arena.vercel.app/mcp");
+    expect(prompt).toContain("ARENA_MCP_MISSING");
+    expect(prompt).toContain('arena_connect({"ticket":"opaque-ticket"})');
+    expect(prompt).toContain("courseId=arena-slalom-ramp-v1");
   });
 
   it("binds the First Steps mission to its exact MCP courseId", () => {
-    const prompt = buildAgentPrompt(COURSE_CATALOG[1]!, 42);
-    expect(prompt).toContain('arena_open({"seed":42,"courseId":"practice-first-steps-v1"})');
+    const prompt = buildAgentPrompt(COURSE_CATALOG[1]!, 42, "first-steps-ticket", "state-v1");
+    expect(prompt).toContain('arena_connect({"ticket":"first-steps-ticket"})');
     expect(prompt).toContain("courseId=practice-first-steps-v1");
   });
 
-  it("does not claim the MCP bridge can reconstruct local imports", () => {
-    const listing = parseImportedCourse({ schemaVersion: "solari.arena.course.v1", courseId: "my-route-v1", maxSeconds: 30, maxActions: 50, maxActionDurationMs: 1500, maxDrive: 1.2, maxTurn: 1, checkpoints: [{ id: "a", x: 2, y: 0, radius: 1 }, { id: "b", x: 4, y: 1, radius: 1 }] });
-    const prompt = buildAgentPrompt(listing);
-    expect(prompt).toContain("ARENA_IMPORTED_COURSE_LOCAL_ONLY");
-    expect(prompt).not.toContain('arena_open({"seed":42,"courseId":"my-route-v1"})');
+  it("keeps checkpoint coordinates out of the vision mission", () => {
+    const prompt = buildAgentPrompt(COURSE_CATALOG[1]!, 42, "vision-ticket", "vision-v1");
+    expect(prompt).toContain("Infer steering from successive images");
+    expect(prompt).toContain("first-gate");
+    expect(prompt).not.toContain("x=3");
+    expect(prompt).not.toContain("y=0");
   });
 });

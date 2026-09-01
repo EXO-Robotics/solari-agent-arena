@@ -10,10 +10,20 @@
     "api/agent-evaluate.mjs": {
       "includeFiles": "{package-lock.json,server/runner/**,server/lib/**,src/model/h1-sagittal.xml,src/agent/course.json}",
       "maxDuration": 120
+    },
+    "api/arena-ticket.mjs": {
+      "includeFiles": "{package-lock.json,server/lib/**,src/agent/course-registry.json}",
+      "maxDuration": 120
+    },
+    "api/mcp.mjs": {
+      "includeFiles": "{package-lock.json,server/lib/**,src/agent/course-registry.json}",
+      "maxDuration": 120
     }
   },
   "rewrites": [
     { "source": "/api/evaluate", "destination": "/api/evaluate.mjs" },
-    { "source": "/api/agent-evaluate", "destination": "/api/agent-evaluate.mjs" }
+    { "source": "/api/agent-evaluate", "destination": "/api/agent-evaluate.mjs" },
+    { "source": "/api/arena-ticket", "destination": "/api/arena-ticket.mjs" },
+    { "source": "/mcp", "destination": "/api/mcp.mjs" }
   ]
 }

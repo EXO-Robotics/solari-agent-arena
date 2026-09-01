@@ -5,13 +5,14 @@
 ```mermaid
 flowchart TB
   subgraph Agent[External agent / not isolated]
-    C[Codex built-in browser]
-    L[Local model MCP host]
+    C[Codex / MCP-capable agent]
+    L[Local developer MCP host]
     S[Safari computer use]
   end
   subgraph Browser[Non-authoritative browser trial]
     W[WebMCP site tools]
-    M[Solari Browser MCP bridge]
+    M[Hosted remote MCP<br/>encrypted per-call capability]
+    LM[Local stdio MCP bridge]
     U[Accessible UI / window API]
     O[Reset / observe / bounded act]
     P[Deterministic gait + browser MuJoCo]
@@ -21,8 +22,11 @@ flowchart TB
     U --> O
     O --> P --> T
   end
+  C --> M
   C --> W
-  L --> M
+  L --> LM
+  M -->|stateless CDP reconnect| O
+  LM --> O
   S --> U
   T --> API
   subgraph Server[Server-side authority]
@@ -49,6 +53,7 @@ The external agent may be local, remote, benign, broken, or adversarial. This su
 | Path | Purpose | Authority |
 |---|---|---|
 | Local Preview | Fast generated-controller iteration through the original Worker/watchdog | Non-isolated and non-authoritative |
+| Hosted Agent Practice | Five remote MCP tools controlling one recording Solari Browser through a short-lived encrypted capability | Provider-isolated from the user's machine, but non-authoritative because the page owns simulation state |
 | Agent Tool Trial | Visual observe/act loop, zero-cost thinking, exact transcript capture | Non-authoritative; page/client can be manipulated |
 | Agent Isolated Score | Validate and replay the action transcript in fixed-step MuJoCo in a fresh Sandbox | Authoritative for transcript replay and scoring only |
 | Controller Isolated Evaluation | Run submitted controller source in QuickJS plus MuJoCo in a fresh Sandbox | Authoritative for the controller-source run |
@@ -74,6 +79,7 @@ For the standard MCP path, a built-in selection is explicit and fail closed: the
 |---|---|---|
 | Browser Worker | UI responsiveness and termination of a slow controller step | Origin isolation, compile timeout, authority, deterministic scheduling |
 | WebMCP / window API / accessible buttons | A narrow shared robot-control interface | Trustworthiness of the agent or browser state |
+| Hosted MCP capability | Course/seed/track binding; hides Solari session ID/CDP endpoint; expires quickly; transport remains stateless | Strict single use, durable revocation, public rate limiting, or scoring authority |
 | Agent transcript validation | Canonical sequence, bounded finite actions, course/seed/time/action limits | That the browser trial was honest or that a particular model produced it |
 | Vercel API | Server-only credential handling, admission, request bounds, artifact finalization | Untrusted-code isolation by itself |
 | Solari Sandbox | Fresh microVM outer boundary and SDK-controlled destruction | Publicly documented egress enforcement or remote attestation |
@@ -108,4 +114,5 @@ Creation, upload, unpack, runner, hash, or teardown failure returns no authorita
 - Sandbox commands have explicit SDK deadlines; the Sandbox idle timer is a cleanup backstop, not a controller deadline.
 - Teardown runs in `finally`; unconfirmed teardown fails closed and mints no evidence.
 - Public evaluation stays disabled by default and requires a separate admission token when enabled.
+- Hosted anonymous practice also stays disabled by default. The focused prototype has bounded encrypted capabilities and provider expiry, but intentionally does not claim durable one-time ticket redemption, distributed action locking, cleanup leases, or paid-abuse protection without a shared atomic store.
 - `hostImpactAssessment: not-measured-per-run` prevents teardown metadata from being overstated as host forensics.

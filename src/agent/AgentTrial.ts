@@ -37,12 +37,13 @@ export class AgentTrial {
     this.actions.length = 0;
   }
 
-  recordAction(input: { drive: number; turn: number; durationMs: number }): AgentAction {
+  recordAction(input: { drive: number; turn: number; durationMs: number; expectedSequence?: number }): AgentAction {
     if (this.phase !== "running") throw new Error(`Agent trial is ${this.phase}; reset before acting.`);
     validateAgentAction(input, this.course);
+    if (input.expectedSequence !== undefined && input.expectedSequence !== this.actions.length) throw new Error(`Expected action sequence ${this.actions.length}.`);
     if (this.actions.length >= this.course.maxActions) throw new Error("Agent action budget exhausted.");
     if (this.commandedMs + input.durationMs > this.course.maxSeconds * 1_000) throw new Error("Agent simulated-time budget exhausted.");
-    const action = Object.freeze({ sequence: this.actions.length, ...input });
+    const action = Object.freeze({ sequence: this.actions.length, drive: input.drive, turn: input.turn, durationMs: input.durationMs });
     this.actions.push(action);
     this.commandedMs += input.durationMs;
     return action;

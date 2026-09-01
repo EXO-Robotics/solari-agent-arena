@@ -4,18 +4,20 @@
 
 [Live arena](https://solari-agent-arena.vercel.app/) · [Authoritative agent replay](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid-agent.solari-run.json) · [Frozen agent E2E proof](evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/assertions.json) · [Architecture](docs/ARCHITECTURE.md)
 
-Solari Agent Arena turns [Robot-3D-Sim](https://github.com/EXO-Robotics/Robot-3D-Sim) into an embodied-agent benchmark. A local model, Codex, or browser-driving agent controls the same MuJoCo/Three.js arena as the human reviewer through four page tools or a seven-tool recording MCP bridge. The frozen official route has five checkpoints; practice and local routes can define other bounded checkpoint sequences.
+Solari Agent Arena turns [Robot-3D-Sim](https://github.com/EXO-Robotics/Robot-3D-Sim) into an embodied-agent benchmark. A local model, Codex, or browser-driving agent controls the same MuJoCo/Three.js arena as the human reviewer. The primary path is a hosted five-tool MCP surface backed by a recording Solari Browser; WebMCP and the checked-in stdio bridge remain developer fallbacks.
 
 The browser trial is deliberately **non-authoritative**. The only authoritative score comes from replaying the validated action transcript with fixed-step MuJoCo inside a fresh **Solari Sandbox**, then binding the result, telemetry, replay state, course, seed, and transcript to SHA-256 evidence.
 
-## The product in two clicks — after one connection
+## The product in two clicks
 
-A pasted prompt cannot attach tools to an already-running Codex task. On the first use of a cloned checkout, save `SOLARI_API_KEY` in `.env.local`, run `npm run setup:codex`, and restart Codex. The installer stores only absolute paths in Codex MCP configuration; it does not copy the key. Codex desktop, CLI, and IDE share that host configuration. This follows the [official Codex MCP setup model](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+A pasted prompt cannot attach tools to an already-running agent task. Add `https://solari-agent-arena.vercel.app/mcp` as a remote MCP server once; this is the only connection step and requires no clone, local Node process, or personal Solari key.
 
-1. Open the arena and choose an official, practice, or locally imported course.
-2. Click **Copy mission & enter arena**, paste the mission into a connected Codex task or local model, and let it use the exposed tools.
+1. Choose a built-in course and a **State** or **Vision** observation track, then click **Connect Agent**. The server launches one recording Solari Browser, loads the exact course and seed, verifies the manifest, and returns a short-lived opaque pairing ticket to the page.
+2. Click **Copy Mission**, paste it into the connected agent, and let it call `arena_connect → arena_observe / arena_act → arena_finish`.
 
-The copied mission starts with a connection preflight and does not pretend that a Safari tab is shared with a new Codex task. It includes an exact recovery instruction when tools are absent, every tool’s role, course coordinates, action limits, the MuJoCo equations/timing, and the finish condition. The simulation clock is frozen while the model looks or thinks. For an official course, `RUN ISOLATED SCORE` submits only the transcript and seed; the external agent itself is **not** claimed to run inside Solari.
+The copied mission explicitly detects missing tools, describes all five operations, gives action limits and MuJoCo timing/equations, and requires inspection after every action. State exposes exact pose/heading/speed without an image. Vision exposes a cropped arena image plus phase/progress/budget, while withholding pose, yaw, velocity, pitch, and checkpoint coordinates. The simulation clock is frozen while the model looks or thinks.
+
+Remote practice is **recorded but non-authoritative**: the browser page still owns the simulated state. For an official course, `RUN ISOLATED SCORE` separately submits only the bounded transcript and seed to the existing token-gated Sandbox evaluator; the external agent itself is not claimed to run inside the Sandbox.
 
 A fresh Solari Sandbox replays the transcript through the frozen deterministic gait and MuJoCo model, scores it, emits `solari.arena.agent-run.v1`, and is killed before authority is issued. The browser verifies artifact hashes and replays recorded `qpos`/`qvel`; it never rescores the run.
 
@@ -40,18 +42,17 @@ There is no Solari Desktop integration. This evaluator is headless and the exist
 
 ```mermaid
 flowchart LR
-  A[Local model / Codex / agent]
-  A -->|Codex site tools| WM[WebMCP on live page]
-  A -->|standard stdio MCP| MB[Local MCP bridge]
-  MB -->|server-side API key| SB[Solari Browser]
-  A -->|Safari computer use| UI[Accessible arena controls]
-  WM --> BT[Browser Agent Tool Trial]
-  SB --> BT
-  UI --> BT
-  BT -->|reset / observe / bounded act| BM[Browser MuJoCo + Three.js]
+  UI[Course + track picker] -->|POST /api/arena-ticket| API[Vercel Node API<br/>credentials server-side]
+  API -->|create + record| SB[Solari Browser]
+  UI -->|short-lived opaque ticket| A[Codex / local model / agent]
+  A -->|hosted /mcp<br/>5 narrow tools| API
+  API -->|CDP reconnect per call| SB
+  SB --> BT[Browser Agent Tool Trial]
+  BT -->|observe / expected bounded act| BM[Browser MuJoCo + Three.js]
   BM --> TR[solari.arena.agent-transcript.v1]
-  TR -->|POST + admission token| API[Vercel Node API<br/>Solari key server-side]
-  API --> SS
+  TR --> PR[solari.arena.remote-practice-run.v1<br/>unsigned + hash-bound]
+  TR -->|official course + admission token| EAPI[Authoritative evaluation API]
+  EAPI --> SS
   subgraph SS[Fresh Solari Sandbox]
     V[Validate canonical transcript]
     M[Fixed gait + MuJoCo 3.12<br/>2 ms authoritative simulation]
@@ -60,12 +61,28 @@ flowchart LR
   end
   E --> AR[solari.arena.agent-run.v1<br/>hash-bound evidence]
   AR --> RP[Browser integrity check + recorded replay]
-  VR[Solari Browser release verifier] -->|numeric form + DOM + hashes + completion| RP
+  VR[Solari Browser release verifier] -->|DOM + hashes + replay completion| RP
 ```
 
-The trust claim is intentionally narrow: **the external model is outside the isolated boundary**. Sandbox authority covers validated transcript replay and scoring. A manipulated browser trial cannot mint an authoritative score.
+Vercel does not hold Arena state in an MCP object or module global. Each tool call carries an encrypted, short-lived `arenaSession`; the provider session ID and raw CDP endpoint remain inside that ciphertext and are never returned separately. The transport is stateless and reconnects with Puppeteer, then disconnects without closing the Browser. The trust claim remains narrow: **the external model and remote browser trial are outside the authoritative boundary**.
 
 ## Agent tool surfaces
+
+### Hosted remote MCP: primary practice path
+
+Add `https://solari-agent-arena.vercel.app/mcp` to an MCP-capable host. The server is stateless and exposes exactly five tools:
+
+| Tool | Effect |
+|---|---|
+| `arena_connect(ticket)` | Verify a short-lived course/seed/track-bound pairing ticket and return an opaque `arenaSession` plus the first observation. |
+| `arena_observe(arenaSession)` | Return the State or Vision observation without advancing simulated time. |
+| `arena_act(arenaSession, expectedSequence, drive, turn, durationMs)` | Apply one sequence-checked bounded action and return its resulting observation. |
+| `arena_finish(arenaSession)` | Release Browser and return transcript plus `solari.arena.remote-practice-run.v1`. |
+| `arena_disconnect(arenaSession)` | Release without issuing a practice result. |
+
+The pairing token is replayable until its five-minute expiry in this focused prototype; it reattaches to the same Browser rather than creating another. The session capability lasts at most twenty minutes or the shorter Solari provider deadline. Abandoned sessions are bounded by the provider deadline. Strict one-time redemption, durable active-session leases, and public paid-abuse protection require a shared atomic store and rate limiter; therefore `SOLARI_REMOTE_ENABLED` defaults to `false` and must remain false on unattended public deployments until those controls exist. This limitation is explicit rather than disguised as “single use.”
+
+Remote practice can never call the authoritative evaluator or emit `solari.arena.agent-run.v1`. Its receipt says `authoritative:false`, hashes the transcript/screenshot/recording when obtained, hashes rather than reveals the Solari session ID, and records only that release was accepted.
 
 ### Codex built-in browser: site tools
 
@@ -80,7 +97,7 @@ Open the [live agent arena](https://solari-agent-arena.vercel.app/?agent=1) in C
 
 Codex can discover site tools only when the page is opened inside the browser surface attached to that same task. A Safari tab or a page opened in another task is not a tool connection. Current OpenAI setup/availability details are in the [official site-tools documentation](https://learn.chatgpt.com/docs/webmcp).
 
-### Local models or Codex CLI: standard MCP bridge
+### Local stdio MCP: developer fallback
 
 The checked-in stdio server launches a recording-enabled Solari Browser and exposes `arena_open`, `arena_reset`, `arena_observe`, `arena_look`, `arena_act`, `arena_transcript`, and `arena_close`. Start with `arena_open({ seed, courseId })`; `courseId` is required, allow-listed to the three built-in versioned routes, and the returned observation must match it before the agent acts. An omitted or unknown ID fails instead of silently opening another route. `arena_reset` reuses the active Browser session, while `arena_look` and every action return both structured state and a PNG view. Closing can retain the transcript, final screenshot, rrweb replay, and hash receipt under this repository's `evidence/agent-sessions/` directory regardless of the model host's working directory.
 
@@ -100,7 +117,7 @@ Built-in course selection travels as an explicit contract: copied prompt → `ar
 
 The Agent Tools panel exposes accessible buttons and status fields. Browser automation may also call the same frozen API at `window.solariAgentArena`. Safari does not provide Codex site tools; a local model needs computer-use/browser automation or the standard MCP bridge.
 
-The in-app **Tools & physics** drawer explains where each interface appears, lists all seven MCP operations, provides a copyable setup command, and shows the exact fixed-step dynamics used by the benchmark. The manual numeric action console stays collapsed unless a developer or verifier opens it.
+The in-app **Tools & physics** drawer leads with the hosted five-tool contract and exact physics. Course JSON import and the seven-tool stdio server are kept as local creator/developer fallbacks. The manual numeric action console stays collapsed unless a developer or verifier opens it.
 
 ## Tool and transcript contract
 
@@ -161,6 +178,9 @@ SOLARI_API_KEY=slr_live_...
 SOLARI_SANDBOX_TEMPLATE=base
 SOLARI_EVALUATION_TOKEN=separate-demo-admission-code
 SOLARI_EVALUATION_ENABLED=false
+SOLARI_REMOTE_ENABLED=false
+SOLARI_REMOTE_TICKET_SECRET=random-server-only-secret-at-least-32-characters
+SOLARI_REMOTE_ALLOWED_HOSTS=solari-agent-arena.vercel.app,localhost,127.0.0.1
 ```
 
 Never prefix the Solari key with `VITE_`. Vite alone serves the browser trials; use `vercel dev` for `/api/evaluate` and `/api/agent-evaluate`.
@@ -185,10 +205,13 @@ npx vercel env add SOLARI_API_KEY production --sensitive
 npx vercel env add SOLARI_EVALUATION_TOKEN production --sensitive
 npx vercel env add SOLARI_SANDBOX_TEMPLATE production
 npx vercel env add SOLARI_EVALUATION_ENABLED production
+npx vercel env add SOLARI_REMOTE_TICKET_SECRET production --sensitive
+npx vercel env add SOLARI_REMOTE_ENABLED production
+npx vercel env add SOLARI_REMOTE_ALLOWED_HOSTS production
 npx vercel deploy --prod
 ```
 
-Keep `SOLARI_EVALUATION_ENABLED=false` on unattended public deployments. Checked-in authoritative replays stay public; paid live evaluation requires deliberately enabling it plus the separate admission token. The admission token is not a Solari credential.
+Keep both `SOLARI_EVALUATION_ENABLED=false` and `SOLARI_REMOTE_ENABLED=false` on unattended public deployments unless their separate admission requirements are satisfied. Checked-in authoritative replays stay public. Paid live evaluation requires the admission token; anonymous hosted practice additionally requires durable rate/concurrency limits and cleanup leases. Neither gate is a Solari credential.
 
 The API deliberately makes no in-process “one run at a time” claim: Vercel instances do not share memory. Before enabling live evaluation for multiple reviewers, add an account-level Solari quota and a durable distributed rate/lease control. The checked-in public deployment remains disabled.
 

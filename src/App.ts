@@ -14,7 +14,7 @@ import { AGENT_TOOL_VERSION, type AgentObservation, type AgentTranscript } from 
 import { registerAgentSiteTools } from "./agent/webmcp";
 import { agentGaitTargets } from "./agent/gait";
 import { COURSE_CATALOG, parseImportedCourse, type CourseListing } from "./agent/courseCatalog";
-import { buildAgentPrompt } from "./agent/prompt";
+import { buildAgentPrompt, type RemoteTrack } from "./agent/prompt";
 
 const CONTROL_DT = 0.01;
 const TELEMETRY_DT = 0.04;
@@ -43,7 +43,9 @@ export class App {
   private replayElapsed = 0;
   private readonly agentTrial = new AgentTrial();
   private readonly courseListings: CourseListing[] = [...COURSE_CATALOG];
-  private activeCourse: CourseListing = this.courseListings[0]!;
+  private activeCourse: CourseListing = this.courseListings.find((listing) => listing.course.courseId === "practice-first-steps-v1") ?? this.courseListings[0]!;
+  private remoteTrack: RemoteTrack = "state-v1";
+  private remotePairing: { ticket: string; expiresAt: number; courseId: string; seed: number; track: RemoteTrack } | null = null;
   private agentCommand: {
     drive: number;
     turn: number;
@@ -169,6 +171,7 @@ export class App {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-course-index]");
       if (button) this.selectCourse(Number(button.dataset.courseIndex));
     });
+    this.requireElement("#start-connect").addEventListener("click", () => void this.connectRemoteAgent());
     this.requireElement("#start-copy").addEventListener("click", () => void this.copyMissionPrompt(true));
     this.requireElement("#mission-copy").addEventListener("click", () => void this.copyMissionPrompt(false));
     this.requireElement("#mission-courses").addEventListener("click", () => this.openStartScreen());
@@ -177,6 +180,11 @@ export class App {
     this.requireElement("#guide-open").addEventListener("click", () => this.setGuideOpen(true));
     this.requireElement("#guide-close").addEventListener("click", () => this.setGuideOpen(false));
     this.requireElement("#guide-backdrop").addEventListener("click", () => this.setGuideOpen(false));
+    this.root.querySelectorAll<HTMLButtonElement>("[data-remote-track]").forEach((button) => button.addEventListener("click", () => {
+      this.remoteTrack = button.dataset.remoteTrack as RemoteTrack;
+      this.remotePairing = null;
+      this.renderRemoteTrack();
+    }));
     this.root.querySelectorAll<HTMLElement>("[data-copy-mcp-command]").forEach((button) => button.addEventListener("click", () => void this.copyMcpCommand(button)));
     this.requireInput("#course-import").addEventListener("change", (event) => void this.importCourse((event.currentTarget as HTMLInputElement).files?.[0]));
     this.requireElement("#mode-preview").addEventListener("click", () => this.setMode("preview"));
@@ -723,6 +731,7 @@ export class App {
       observe: () => this.observeAgent(),
       act: (input) => this.actAgent(input),
       transcript: () => this.agentTrial.transcript(),
+      manifest: () => ({ course: structuredClone(this.activeCourse.course) }),
     });
   }
 
@@ -773,7 +782,7 @@ export class App {
     return this.agentTrial.observation(this.engine.sensors());
   }
 
-  private actAgent(input: { drive: number; turn: number; durationMs: number }): Promise<AgentObservation> {
+  private actAgent(input: { drive: number; turn: number; durationMs: number; expectedSequence?: number }): Promise<AgentObservation> {
     if (!this.engine) return Promise.reject(new Error("MuJoCo is not ready."));
     if (this.mode !== "agent") this.setMode("agent");
     if (this.agentCommand) return Promise.reject(new Error("Wait for the active tool action to finish."));
@@ -925,9 +934,10 @@ export class App {
 
   private openStartScreen(): void {
     this.renderCourseLibrary();
+    this.renderRemoteTrack();
     this.requireElement("#start-screen").classList.add("start-screen--visible");
     this.requireElement(".app-shell").setAttribute("inert", "");
-    window.setTimeout(() => this.requireElement("#start-copy").focus(), 60);
+    window.setTimeout(() => this.requireElement("#start-connect").focus(), 60);
   }
 
   private closeStartScreen(): void {
@@ -955,11 +965,13 @@ export class App {
     const listing = this.courseListings[index];
     if (!listing) return;
     this.activeCourse = listing;
+    this.remotePairing = null;
     this.agentTrial.configureCourse(listing.course);
     this.scene?.configureAgentCourse(listing.course.checkpoints);
     if (this.engine) this.resetAgentTrial(Number(this.requireInput("#agent-seed").value));
     this.renderCourseLibrary();
     this.renderMissionSummary();
+    this.renderRemoteTrack();
   }
 
   private selectCourseFromUrl(courseId: string | null): void {
@@ -967,6 +979,7 @@ export class App {
     const listing = this.courseListings.find((candidate) => candidate.source !== "imported" && candidate.course.courseId === courseId);
     if (!listing) throw new Error(`Unknown or non-transferable courseId: ${courseId}`);
     this.activeCourse = listing;
+    this.remotePairing = null;
     this.agentTrial.configureCourse(listing.course);
     this.renderCourseLibrary();
     this.renderMissionSummary();
@@ -981,20 +994,82 @@ export class App {
       </button>`).join("");
     this.requireElement("#selected-course-name").textContent = this.activeCourse.title;
     this.requireElement("#selected-course-summary").textContent = this.activeCourse.summary;
-    this.requireElement("#selected-course-meta").textContent = `${this.activeCourse.course.checkpoints.length} checkpoints · ${this.activeCourse.course.maxSeconds}s · ${this.activeCourse.authoritative ? "Solari scoring available" : "browser trial only"}`;
+    this.requireElement("#selected-course-meta").textContent = `${this.activeCourse.course.checkpoints.length} checkpoints · ${this.activeCourse.course.maxSeconds}s · ${this.activeCourse.authoritative ? "recorded practice + isolated scoring" : "recorded browser practice"}`;
   }
 
   private renderMissionSummary(): void {
     this.requireElement("#mission-course").textContent = this.activeCourse.title;
     this.requireElement("#mission-description").textContent = this.activeCourse.summary;
-    this.requireElement("#mission-authority").textContent = this.activeCourse.authoritative ? "OFFICIAL · ISOLATED SCORE ELIGIBLE" : "PRACTICE · LOCAL TRIAL ONLY";
+    this.requireElement("#mission-authority").textContent = this.activeCourse.authoritative ? "OFFICIAL · PRACTICE OR ISOLATED SCORE" : "PRACTICE · RECORDED · NON-AUTHORITATIVE";
     const isolated = this.requireElement("#agent-isolated") as HTMLButtonElement;
     isolated.disabled = !this.activeCourse.authoritative;
     isolated.textContent = this.activeCourse.authoritative ? "RUN ISOLATED SCORE" : "OFFICIAL COURSE REQUIRED";
   }
 
+  private renderRemoteTrack(): void {
+    this.root.querySelectorAll<HTMLButtonElement>("[data-remote-track]").forEach((button) => {
+      const active = button.dataset.remoteTrack === this.remoteTrack;
+      button.classList.toggle("track-choice--active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+    const connect = this.requireElement("#start-connect") as HTMLButtonElement;
+    const copy = this.requireElement("#start-copy") as HTMLButtonElement;
+    if (!this.remotePairing) {
+      connect.textContent = this.activeCourse.source === "imported" ? "LOCAL IMPORT ONLY" : "1 · CONNECT AGENT";
+      connect.disabled = this.activeCourse.source === "imported";
+      copy.textContent = "2 · COPY MISSION ↗";
+      copy.disabled = true;
+      this.requireElement("#remote-connect-status").textContent = this.activeCourse.source === "imported"
+        ? "Imported courses stay in this browser and cannot create a hosted session."
+        : "No clone or personal Solari key required. Practice is recorded and non-authoritative.";
+    }
+  }
+
+  private async connectRemoteAgent(): Promise<boolean> {
+    if (this.activeCourse.source === "imported") {
+      this.requireElement("#remote-connect-status").textContent = "Imported routes are local-only. Choose a built-in course for hosted agent practice.";
+      return false;
+    }
+    const seed = Number(this.requireInput("#agent-seed").value) || 42;
+    const button = this.requireElement("#start-connect") as HTMLButtonElement;
+    const copy = this.requireElement("#start-copy") as HTMLButtonElement;
+    button.disabled = true; copy.disabled = true; button.textContent = "CREATING RECORDED ARENA…";
+    this.requireElement("#remote-connect-status").textContent = "Solari Browser is loading the selected course and verifying its seed and manifest.";
+    try {
+      const response = await fetch("/api/arena-ticket", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ courseId: this.activeCourse.course.courseId, seed, track: this.remoteTrack }),
+      });
+      const text = await response.text();
+      let body: { pairingTicket?: string; expiresAt?: string; error?: string };
+      try { body = JSON.parse(text) as typeof body; }
+      catch { throw new Error("Hosted Agent Practice requires the deployed app or `vercel dev`; Vite serves the browser UI only."); }
+      if (!response.ok || !body.pairingTicket || !body.expiresAt) throw new Error(body.error ?? "Hosted Agent Practice did not issue a ticket.");
+      const expiresAt = Date.parse(body.expiresAt);
+      this.remotePairing = { ticket: body.pairingTicket, expiresAt, courseId: this.activeCourse.course.courseId, seed, track: this.remoteTrack };
+      button.textContent = "CONNECTED · RECORDED PRACTICE READY";
+      copy.disabled = false;
+      this.requireElement("#remote-connect-status").textContent = `Ready until ${new Date(expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}. Next click copies the complete mission.`;
+      window.setTimeout(() => {
+        const pairing = this.remotePairing;
+        if (pairing && pairing.ticket === body.pairingTicket && pairing.expiresAt <= Date.now()) {
+          this.remotePairing = null;
+          this.renderRemoteTrack();
+        }
+      }, Math.max(0, expiresAt - Date.now()) + 200);
+      return true;
+    } catch (error) {
+      this.remotePairing = null;
+      button.textContent = "1 · CONNECT AGENT";
+      button.disabled = false;
+      this.requireElement("#remote-connect-status").textContent = String(error instanceof Error ? error.message : error);
+      return false;
+    }
+  }
+
   private async copyMcpCommand(button: HTMLElement): Promise<void> {
-    const command = "npm run setup:codex";
+    const command = "https://solari-agent-arena.vercel.app/mcp";
     await this.writeClipboard(command);
     button.textContent = "COPIED";
     window.setTimeout(() => { button.textContent = button.dataset.copyLabel ?? "COPY SETUP COMMAND"; }, 1_800);
@@ -1002,7 +1077,11 @@ export class App {
 
   private async copyMissionPrompt(closeAfterCopy: boolean): Promise<void> {
     const seed = Number(this.requireInput("#agent-seed").value) || 42;
-    const prompt = buildAgentPrompt(this.activeCourse, seed);
+    if (!this.remotePairing || this.remotePairing.expiresAt <= Date.now() || this.remotePairing.courseId !== this.activeCourse.course.courseId || this.remotePairing.seed !== seed || this.remotePairing.track !== this.remoteTrack) {
+      const connected = await this.connectRemoteAgent();
+      if (!connected || !this.remotePairing) return;
+    }
+    const prompt = buildAgentPrompt(this.activeCourse, seed, this.remotePairing.ticket, this.remoteTrack);
     const button = this.requireElement(closeAfterCopy ? "#start-copy" : "#mission-copy");
     const original = button.textContent;
     try {
@@ -1245,11 +1324,11 @@ export class App {
         <div class="start-screen__veil"></div>
         <div class="start-screen__content">
           <header><span>SA / COURSE LIBRARY</span><button id="close-courses" aria-label="Close course library">×</button></header>
-          <div class="start-screen__intro"><small>AI ROBOT BENCHMARK</small><h1 id="start-title">Pick a course.<br/>Hand it to your agent.</h1><p>Once the tools are connected, copy the mission and paste it into Codex or your local model. The agent launches its own recorded arena; a Safari tab is not shared with a new Codex task.</p><div class="connection-preflight"><b>FIRST RUN ON THIS COMPUTER?</b><span>From the cloned repository run the one-time connector, restart Codex, then every course is two clicks. Already see <code>arena_open</code>? Skip this.</span><button data-copy-mcp-command data-copy-label="COPY ONE-TIME CONNECT COMMAND">COPY ONE-TIME CONNECT COMMAND</button></div></div>
+          <div class="start-screen__intro"><small>AI ROBOT BENCHMARK</small><h1 id="start-title">Pick a course.<br/>Connect an agent.</h1><p>Create one recorded public practice session, then paste one mission into any MCP-capable agent. No clone or personal Solari key required.</p><div class="connection-preflight"><b>FIRST TIME WITH THIS AGENT?</b><span>Add <code>https://solari-agent-arena.vercel.app/mcp</code> once. A pasted prompt cannot attach tools to a new task by itself.</span><button data-copy-mcp-command data-copy-label="COPY MCP URL">COPY MCP URL</button></div><div class="track-picker" aria-label="Observation track"><span>CHOOSE OBSERVATION TRACK</span><div><button class="track-choice track-choice--active" data-remote-track="state-v1" aria-pressed="true"><b>STATE</b><small>Pose, heading, speed, checkpoints. No camera.</small></button><button class="track-choice" data-remote-track="vision-v1" aria-pressed="false"><b>VISION</b><small>Arena image, phase, progress, and budget. No pose coordinates.</small></button></div></div></div>
           <div id="course-list" class="course-list"></div>
           <div class="selected-course"><span>SELECTED</span><strong id="selected-course-name">${this.activeCourse.title}</strong><p id="selected-course-summary">${this.activeCourse.summary}</p><small id="selected-course-meta"></small></div>
-          <div class="start-screen__actions"><button id="start-copy" class="start-primary">COPY MISSION & ENTER ARENA <span>↗</span></button><label class="import-course">IMPORT COURSE JSON<input id="course-import" type="file" accept="application/json,.json" /></label></div>
-          <p id="course-import-status" class="course-import-status">Imported route manifests stay in this browser and cannot mint Solari scores. <a href="/course-template.json" download>Download the course template.</a></p>
+          <div class="start-screen__actions"><button id="start-connect" class="start-secondary">1 · CONNECT AGENT</button><button id="start-copy" class="start-primary" disabled>2 · COPY MISSION <span>↗</span></button></div>
+          <p id="remote-connect-status" class="remote-connect-status" aria-live="polite">No clone or personal Solari key required. Practice is recorded and non-authoritative.</p><p id="course-import-status" class="course-import-status"></p>
           <textarea id="prompt-fallback" class="prompt-fallback" aria-label="Agent mission prompt"></textarea>
         </div>
       </section>
@@ -1257,10 +1336,10 @@ export class App {
         <button id="guide-backdrop" class="guide-drawer__backdrop" aria-label="Close guide"></button>
         <aside>
           <header><div><small>AGENT FIELD MANUAL</small><h2>Tools & physics</h2></div><button id="guide-close" aria-label="Close guide">×</button></header>
-          <section class="tool-setup"><span>01 / CONNECT ONCE</span><h3>Where the tools are</h3><p><b>New Codex task:</b> it does not inherit your Safari tab. From this cloned repository, run the connector below and restart Codex once. It stores only absolute file paths; <code>SOLARI_API_KEY</code> stays in <code>.env.local</code>. <b>Codex Browser:</b> open this page inside the same task to use page tools. <b>Other local models:</b> connect the checked-in stdio MCP server.</p><code>npm run setup:codex</code><button data-copy-mcp-command data-copy-label="COPY SETUP COMMAND">COPY SETUP COMMAND</button></section>
-          <section class="tool-list"><span>02 / TOOL LOOP</span><dl><div><dt>arena_open</dt><dd>Launch a recording Solari Browser session.</dd></div><div><dt>arena_reset</dt><dd>Start the selected route at a deterministic seed.</dd></div><div><dt>arena_look</dt><dd>Return a screenshot and structured state.</dd></div><div><dt>arena_observe</dt><dd>Read state without advancing simulation.</dd></div><div><dt>arena_act</dt><dd>Apply bounded drive, turn, and duration.</dd></div><div><dt>arena_transcript</dt><dd>Return the exact controller artifact.</dd></div><div><dt>arena_close</dt><dd>Retain recording and hash receipt.</dd></div></dl></section>
+          <section class="tool-setup"><span>01 / CONNECT ONCE</span><h3>Where the tools are</h3><p>Add the hosted endpoint below to an MCP-capable agent once. The course button creates a short-lived pairing ticket; the copied mission carries it to the agent. A Safari tab is never assumed to be shared, and Solari credentials remain server-side.</p><code>https://solari-agent-arena.vercel.app/mcp</code><button data-copy-mcp-command data-copy-label="COPY MCP URL">COPY MCP URL</button></section>
+          <section class="tool-list"><span>02 / TOOL LOOP</span><dl><div><dt>arena_connect</dt><dd>Attach the course-bound practice ticket and return an opaque session.</dd></div><div><dt>arena_observe</dt><dd>Read track-specific state without advancing simulation.</dd></div><div><dt>arena_act</dt><dd>Apply one expected bounded action and inspect its result.</dd></div><div><dt>arena_finish</dt><dd>Release Browser and return transcript plus practice receipt.</dd></div><div><dt>arena_disconnect</dt><dd>Release safely without issuing a result.</dd></div></dl></section>
           <section class="physics-sheet"><span>03 / PHYSICS</span><h3>MuJoCo 3.12 · deterministic clock</h3><code>M(q)·v̇ + c(q,v) = τ + J(q)ᵀf</code><p><b>Physics step</b> Δt = 0.002 s<br/><b>Control/gait tick</b> Δt<sub>c</sub> = 0.010 s<br/><b>Planar command</b> v<sub>x</sub> = cos(ψ)d, v<sub>y</sub> = sin(ψ)d<br/><b>Energy</b> E += Σ|τᵢq̇ᵢ|Δt</p><small>Observing, screenshots, network delay, and model thinking consume zero simulated time.</small></section>
-          <section><span>04 / AUTHORITY</span><h3>Preview here. Judge in Solari.</h3><p>The browser can be manipulated, so it never mints a score. Official transcripts are replayed and scored in fixed-step MuJoCo inside a fresh Solari Sandbox.</p></section>
+          <section><span>04 / AUTHORITY</span><h3>Practice in Browser. Judge in Sandbox.</h3><p>Remote MCP practice is isolated from your machine and recorded in Solari Browser, but the page still owns the simulation and cannot mint authority. Official transcripts are replayed and scored in fixed-step MuJoCo inside a fresh Solari Sandbox.</p></section><section class="local-fallback"><span>05 / BUILD A COURSE</span><h3>Local creator tools</h3><p>Course JSON import and the checked-in stdio MCP remain development fallbacks. Imported routes stay in this browser and cannot mint a score.</p><label class="import-course">IMPORT COURSE JSON<input id="course-import" type="file" accept="application/json,.json" /></label><a href="/course-template.json" download>Download course template</a></section>
         </aside>
       </div>
       <div id="boot" class="boot"><div class="boot__brand">SA</div><p id="boot-label">Initializing Solari Agent Arena</p><div class="boot__track"><i id="boot-progress"></i></div><small>LOCAL PREVIEW BOOTS FIRST / AUTHORITY STAYS SERVER-SIDE</small></div>

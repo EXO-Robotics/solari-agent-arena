@@ -9,8 +9,9 @@ interface Window {
     version: string;
     reset(seed?: number): import("./agent/contract").AgentObservation;
     observe(): import("./agent/contract").AgentObservation;
-    act(input: { drive: number; turn: number; durationMs: number }): Promise<import("./agent/contract").AgentObservation>;
+    act(input: { drive: number; turn: number; durationMs: number; expectedSequence?: number }): Promise<import("./agent/contract").AgentObservation>;
     transcript(): import("./agent/contract").AgentTranscript;
+    manifest(): { course: import("./agent/contract").AgentCourse };
   }>;
 }
 
