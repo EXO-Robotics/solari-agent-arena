@@ -118,3 +118,9 @@ Fresh Grok session `01a05d93-c5b2-7bb3-b86b-e555f4e7f3d2` inspected the revised 
 - No material finding remains under the stated default-disabled scope.
 
 Remaining deferred public-production controls are documented product limits, not hidden claims: pairing replay protection, durable distributed action/session locks, cleanup leases, and paid-abuse rate/concurrency control. `SOLARI_REMOTE_ENABLED=false` is the release gate until those exist.
+
+## Zero-install HTTPS live walkthrough
+
+A fresh `gpt-5.6-luna` tester received only the exact system prompt copied from the production Safari course picker. It had no repository context and was explicitly forbidden from using preconfigured Arena/MCP tools. Using ordinary HTTPS, it completed `practice-first-steps-v1` at seed 42 with 3/3 checkpoints, 9 actions, 9.81 simulated seconds, zero collisions, and `releaseAccepted=true`.
+
+The redacted record and Safari copy-state screenshot are retained under [`evidence/https-agent/practice_df95e68118ed5aff246c2a84`](../evidence/https-agent/practice_df95e68118ed5aff246c2a84). This proves the zero-install handoff and recorded Browser practice loop, not authoritative Sandbox qualification. The temporary production window was closed immediately afterward; both `SOLARI_REMOTE_ENABLED` and `SOLARI_EVALUATION_ENABLED` were verified off.

@@ -165,6 +165,7 @@ Both contracts are unsigned integrity artifacts, not remote attestation. `sandbo
 
 | Claim | Proof | Boundary |
 |---|---|---|
+| Copied prompt works in a fresh agent with no setup | Fresh Luna received the Safari-copied First Steps prompt with no repository context or MCP, used ordinary HTTPS, and completed 3/3 in 9 actions / 9.81 simulated seconds / 0 collisions with confirmed release | Zero-install Browser practice transport, non-authoritative |
 | Browser thinking costs zero simulated time | Browser E2E observes time 0, waits 750 ms wall time, observes time 0 | Browser behavior, not authority |
 | Local-model MCP bridge works against production | Real stdio MCP handshake lists seven tools, proves reset plus zero-cost observation and exact 800 ms action, completes the 21-action 5/5 course, then retains a hash-bound screenshot/rrweb receipt | Tool transport and presentation, not scoring authority |
 | Agent course can be completed | Valid transcript: 5/5, 21 actions, 26.124 s, 0 collisions | Local deterministic runner + live Sandbox |
@@ -174,7 +175,7 @@ Both contracts are unsigned integrity artifacts, not remote attestation. `sandbo
 | Failure cases do not poison the service | valid → hang → capability probe → valid reproduces telemetry/metrics | Tested service recovery, not host forensics |
 | Public UI matches authority | Solari Browser compares all fields/hashes and reaches replay `COMPLETE` | Deployed presentation fidelity |
 
-Retained artifacts live in `public/evidence/`, `evidence/e2e/`, `evidence/agent-e2e/`, and `evidence/mcp/`. See [docs/QUALIFICATION.md](docs/QUALIFICATION.md) for exact IDs and hashes.
+Retained artifacts live in `public/evidence/`, `evidence/e2e/`, `evidence/agent-e2e/`, `evidence/https-agent/`, and `evidence/mcp/`. See [docs/QUALIFICATION.md](docs/QUALIFICATION.md) for exact IDs and hashes.
 
 ## Local setup
 

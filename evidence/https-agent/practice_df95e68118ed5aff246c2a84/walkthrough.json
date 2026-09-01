@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "solari.arena.https-agent-walkthrough.v1",
+  "recordedAt": "2026-09-01T16:58:57Z",
+  "repositoryCommit": "10d13c41a50ae21806bad9f77804248771faa8d7",
+  "tester": {
+    "model": "gpt-5.6-luna",
+    "context": "fresh-agent-no-repository-context",
+    "transport": "ordinary-https",
+    "mcpPreconfigured": false
+  },
+  "handoff": {
+    "browser": "Safari",
+    "steps": [
+      "load production app",
+      "select First Steps and State",
+      "click Create Run + Copy Prompt",
+      "give the exact copied prompt to the fresh tester"
+    ],
+    "pluginsRequired": false,
+    "cloneRequired": false,
+    "solariCredentialInPrompt": false,
+    "screenshot": {
+      "path": "prompt-copied.png",
+      "sha256": "f4c15bbd3159d838d581a9ef9bc36e3f7cc98c8bda0462d14862a0c0fefafb77"
+    }
+  },
+  "temporaryDeployment": {
+    "id": "dpl_2ty7fmAFHSnH2TY7gYiKJmcKEV24",
+    "remotePracticeEnabled": true,
+    "authoritativeEvaluationEnabled": false
+  },
+  "result": {
+    "authorityClass": "public-practice",
+    "authoritative": false,
+    "courseId": "practice-first-steps-v1",
+    "seed": 42,
+    "track": "state-v1",
+    "phase": "complete",
+    "checkpoints": {
+      "reached": 3,
+      "total": 3
+    },
+    "simulatedTimeSeconds": 9.809999999999945,
+    "collisions": 0,
+    "actionCount": 9,
+    "runId": "practice_df95e68118ed5aff246c2a84",
+    "transcriptHash": "471cf9d47f4c85f0c78c36d28e285cbb8a14ff71fd39644384496aaf05a6398c",
+    "resultHash": "1df6b1d29b101f7c0a504255f27149dcd552f07a8fbcc9d1e1dc23be9762a6d1",
+    "releaseAccepted": true
+  },
+  "shutdown": {
+    "deploymentId": "dpl_HyzxpKXTECVHf4wy8tB2fjucgL5Y",
+    "remotePracticeEnabled": false,
+    "authoritativeEvaluationEnabled": false,
+    "verified": true
+  },
+  "evidenceLimit": "This record preserves the redacted Luna result and Safari copy-state screenshot. The full server transcript and short-lived capabilities are intentionally not retained here."
+}
