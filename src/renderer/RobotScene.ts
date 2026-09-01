@@ -11,6 +11,7 @@ import type { CourseCheckpoint } from "../agent/contract";
 import { HORIZON, OBSTACLE_ORANGE, STATUS_CYAN, STATUS_VIOLET, createCollisionMaterial, fieldKindForGeom, fieldMaterial } from "./materials";
 import { applyMuJoCoPose, createGeomGeometry } from "./mujocoMath";
 import { loadVisualModel, type VisualLinks } from "./visualBinding";
+import { disposeObjectTree } from "./disposeObjectTree";
 
 export type CameraMode = "broadcast" | "follow" | "overhead";
 
@@ -38,6 +39,10 @@ export class RobotScene {
   private readonly beaconMaterials: THREE.MeshStandardMaterial[] = [];
   private readonly resizeObserver: ResizeObserver;
   private readonly pmrem: THREE.PMREMGenerator;
+  private readonly environmentTexture: THREE.Texture;
+  private readonly cameraTarget = new THREE.Vector3();
+  private readonly cameraDestination = new THREE.Vector3();
+  private readonly debugPosition = new THREE.Vector3();
   private cameraMode: CameraMode = "follow";
   private debug = false;
   private activeCheckpoint = 0;
@@ -54,7 +59,9 @@ export class RobotScene {
   ) {
     this.visualLinks = visualLinks;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+    // One physical pixel per CSS pixel keeps Safari's post-processing targets bounded.
+    // Bloom still supplies the neon finish without allocating Retina-sized framebuffers.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
     this.renderer.setClearColor(HORIZON, 1);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -76,13 +83,14 @@ export class RobotScene {
 
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
     const environment = new RoomEnvironment();
-    this.scene.environment = this.pmrem.fromScene(environment, 0.04).texture;
+    this.environmentTexture = this.pmrem.fromScene(environment, 0.04).texture;
+    this.scene.environment = this.environmentTexture;
     environment.dispose();
 
     this.scene.add(new THREE.HemisphereLight(0xd9e7f0, 0x05080b, 0.44));
     this.keyLight = new THREE.DirectionalLight(0xf4f9ff, 1.35);
     this.keyLight.castShadow = true;
-    this.keyLight.shadow.mapSize.set(2048, 2048);
+    this.keyLight.shadow.mapSize.set(1024, 1024);
     this.keyLight.shadow.bias = -0.0003;
     this.keyLight.shadow.normalBias = 0.03;
     this.keyLight.shadow.radius = 2;
@@ -177,6 +185,7 @@ export class RobotScene {
   }
 
   configureAgentCourse(checkpoints: CourseCheckpoint[]): void {
+    disposeObjectTree(this.agentCourseGroup);
     this.agentCourseGroup.clear();
     this.agentCheckpointMarkers.length = 0;
     const path = [new THREE.Vector3(0, 0, 0.035), ...checkpoints.map((point) => new THREE.Vector3(point.x, point.y, 0.035))];
@@ -223,9 +232,13 @@ export class RobotScene {
   dispose(): void {
     this.resizeObserver.disconnect();
     this.controls.dispose();
+    disposeObjectTree(this.scene);
+    this.environmentTexture.dispose();
     this.composer.dispose();
     this.pmrem.dispose();
+    this.renderer.renderLists.dispose();
     this.renderer.dispose();
+    this.renderer.forceContextLoss();
     this.container.replaceChildren();
   }
 
@@ -360,7 +373,7 @@ export class RobotScene {
 
   private updateDebug(frame: SensorFrame): void {
     if (!this.debug) return;
-    const position = new THREE.Vector3(frame.position, frame.lateral, frame.height + 0.18);
+    const position = this.debugPosition.set(frame.position, frame.lateral, frame.height + 0.18);
     this.comMarker.position.copy(position);
     const linePositions = this.comLine.geometry.getAttribute("position") as THREE.BufferAttribute;
     linePositions.setXYZ(0, position.x, position.y, 0);
@@ -397,13 +410,13 @@ export class RobotScene {
   private updateCamera(frame: SensorFrame): void {
     const forwardX = Math.cos(frame.yaw);
     const forwardY = Math.sin(frame.yaw);
-    const target = new THREE.Vector3(
+    const target = this.cameraTarget.set(
       frame.position + forwardX * 1.1,
       frame.lateral + forwardY * 1.1,
       0.82,
     );
     if (this.cameraMode === "follow") {
-      this.camera.position.lerp(new THREE.Vector3(
+      this.camera.position.lerp(this.cameraDestination.set(
         frame.position - forwardX * 4.4 - forwardY * 2.6,
         frame.lateral - forwardY * 4.4 + forwardX * 2.6,
         2.65,
@@ -411,8 +424,8 @@ export class RobotScene {
       this.controls.target.lerp(target, 0.08);
       this.camera.lookAt(this.controls.target);
     } else if (this.cameraMode === "overhead") {
-      this.camera.position.lerp(new THREE.Vector3(frame.position, frame.lateral, 10.5), 0.08);
-      this.controls.target.lerp(new THREE.Vector3(frame.position, frame.lateral, 0), 0.08);
+      this.camera.position.lerp(this.cameraDestination.set(frame.position, frame.lateral, 10.5), 0.08);
+      this.controls.target.lerp(target.set(frame.position, frame.lateral, 0), 0.08);
       this.camera.lookAt(this.controls.target);
     }
   }

@@ -18,6 +18,9 @@ import { buildAgentPrompt, type RemoteTrack } from "./agent/prompt";
 
 const CONTROL_DT = 0.01;
 const TELEMETRY_DT = 0.04;
+const IDLE_RENDER_INTERVAL_MS = 100;
+const ACTIVE_UI_INTERVAL_MS = 80;
+const IDLE_UI_INTERVAL_MS = 500;
 
 export class App {
   private engine: MujocoEngine | null = null;
@@ -32,6 +35,7 @@ export class App {
   private simulationSpeed = 1;
   private countdownToken = 0;
   private lastUiUpdate = 0;
+  private lastSceneRender = Number.NEGATIVE_INFINITY;
   private powerEnabled = true;
   private animationId = 0;
   private readonly heldControls = new Set<string>();
@@ -105,11 +109,14 @@ export class App {
     const wallDt = Math.min(0.05, (now - this.previousFrameTime) / 1000);
     this.previousFrameTime = now;
     if (this.mode === "isolated" && this.authoritativeRun) {
-      const sample = this.advanceReplay(wallDt);
-      if (sample) {
-        engine.restoreState(sample.qpos, sample.qvel);
-        scene.update(sample.frame);
-        this.renderReplayFrame(sample.frame);
+      if (this.replayPlaying || now - this.lastSceneRender >= IDLE_RENDER_INTERVAL_MS) {
+        const sample = this.advanceReplay(wallDt);
+        if (sample) {
+          engine.restoreState(sample.qpos, sample.qvel);
+          scene.update(sample.frame);
+          this.renderReplayFrame(sample.frame);
+          this.lastSceneRender = now;
+        }
       }
       this.animationId = requestAnimationFrame((time) => this.animate(time));
       return;
@@ -158,8 +165,11 @@ export class App {
     }
 
     const frame = engine.sensors();
-    scene.update(frame);
-    if (now - this.lastUiUpdate > 80) {
+    if (active || now - this.lastSceneRender >= IDLE_RENDER_INTERVAL_MS) {
+      scene.update(frame);
+      this.lastSceneRender = now;
+    }
+    if (now - this.lastUiUpdate > (active ? ACTIVE_UI_INTERVAL_MS : IDLE_UI_INTERVAL_MS)) {
       this.renderTelemetry(frame);
       this.renderRunState();
       if (this.mode === "agent") this.renderAgentPanel(frame);
