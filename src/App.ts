@@ -18,7 +18,6 @@ import { buildAgentPrompt, type RemoteTrack } from "./agent/prompt";
 
 const CONTROL_DT = 0.01;
 const TELEMETRY_DT = 0.04;
-const IDLE_RENDER_INTERVAL_MS = 100;
 const ACTIVE_UI_INTERVAL_MS = 80;
 const IDLE_UI_INTERVAL_MS = 500;
 
@@ -35,7 +34,6 @@ export class App {
   private simulationSpeed = 1;
   private countdownToken = 0;
   private lastUiUpdate = 0;
-  private lastSceneRender = Number.NEGATIVE_INFINITY;
   private powerEnabled = true;
   private animationId = 0;
   private readonly heldControls = new Set<string>();
@@ -110,16 +108,17 @@ export class App {
     const wallDt = Math.min(0.05, (now - this.previousFrameTime) / 1000);
     this.previousFrameTime = now;
     if (this.mode === "isolated" && this.authoritativeRun) {
-      if (this.replayPlaying || now - this.lastSceneRender >= IDLE_RENDER_INTERVAL_MS) {
+      const replayChanged = this.replayIndex !== this.lastRenderedReplayIndex;
+      if (this.replayPlaying || replayChanged || scene.renderPending) {
         const sample = this.advanceReplay(wallDt);
         if (sample) {
-          engine.restoreState(sample.qpos, sample.qvel);
-          scene.update(sample.frame);
-          if (this.replayPlaying || this.replayIndex !== this.lastRenderedReplayIndex) {
+          const indexChanged = this.replayIndex !== this.lastRenderedReplayIndex;
+          if (indexChanged) engine.restoreState(sample.qpos, sample.qvel);
+          scene.update(sample.frame, this.replayPlaying);
+          if (this.replayPlaying || indexChanged) {
             this.renderReplayFrame(sample.frame);
             this.lastRenderedReplayIndex = this.replayIndex;
           }
-          this.lastSceneRender = now;
         }
       }
       this.animationId = requestAnimationFrame((time) => this.animate(time));
@@ -171,13 +170,12 @@ export class App {
       steps += 1;
     }
 
-    const sceneDue = active || now - this.lastSceneRender >= IDLE_RENDER_INTERVAL_MS;
+    const sceneDue = active || scene.renderPending;
     const uiDue = now - this.lastUiUpdate > (active ? ACTIVE_UI_INTERVAL_MS : IDLE_UI_INTERVAL_MS);
     if (sceneDue || uiDue) {
       const frame = latestFrame ?? engine.sensors();
       if (sceneDue) {
-        scene.update(frame);
-        this.lastSceneRender = now;
+        scene.update(frame, active);
       }
       if (uiDue) {
         this.renderTelemetry(frame);
@@ -335,6 +333,7 @@ export class App {
     this.countdownToken += 1;
     this.requireElement("#countdown").classList.remove("countdown--visible");
     this.engine.reset(seed);
+    this.scene?.requestRender();
     this.engine.setActuationEnabled(this.powerEnabled);
     this.telemetry.clear();
     this.accumulator = 0;

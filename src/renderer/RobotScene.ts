@@ -47,6 +47,7 @@ export class RobotScene {
   private cameraMode: CameraMode = "follow";
   private debug = false;
   private activeCheckpoint = 0;
+  private dirty = true;
 
   static async create(container: HTMLElement, engine: MujocoEngine): Promise<RobotScene> {
     const visual = await loadVisualModel(visualModelUrl());
@@ -144,7 +145,16 @@ export class RobotScene {
     this.resize();
   }
 
-  update(frame: SensorFrame): void {
+  get renderPending(): boolean {
+    return this.dirty;
+  }
+
+  requestRender(): void {
+    this.dirty = true;
+  }
+
+  update(frame: SensorFrame, force = false): void {
+    if (!force && !this.dirty) return;
     const bodyPositions = this.engine.data.xpos as Float64Array;
     const bodyRotations = this.engine.data.xmat as Float64Array;
     for (const name of VISUAL_LINK_NAMES) {
@@ -166,13 +176,15 @@ export class RobotScene {
     this.updateDebug(frame);
     this.updateCamera(frame);
     this.updateNeonArena(frame.time);
-    this.controls.update();
+    const controlsChanged = this.controls.update();
     this.composer.render();
+    this.dirty = controlsChanged && this.cameraMode === "broadcast";
   }
 
   setCameraMode(mode: CameraMode): void {
     this.cameraMode = mode;
     this.controls.enabled = mode === "broadcast";
+    this.dirty = true;
   }
 
   setDebug(enabled: boolean): void {
@@ -183,6 +195,7 @@ export class RobotScene {
     for (const mesh of this.collisionMeshes) {
       if (mesh) mesh.visible = enabled;
     }
+    this.dirty = true;
   }
 
   configureAgentCourse(checkpoints: CourseCheckpoint[]): void {
@@ -217,6 +230,7 @@ export class RobotScene {
       this.agentCheckpointMarkers.push(marker);
       this.agentCourseGroup.add(halo, marker);
     });
+    this.dirty = true;
   }
 
   setAgentCourseProgress(active: boolean, reached: number): void {
@@ -228,6 +242,7 @@ export class RobotScene {
       material.opacity = index < reached ? 0.24 : index === reached ? 0.98 : 0.5;
       marker.scale.setScalar(1);
     });
+    this.dirty = true;
   }
 
   dispose(): void {
@@ -439,6 +454,7 @@ export class RobotScene {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(renderSize.width, renderSize.height, false);
     this.composer.setSize(renderSize.width, renderSize.height);
+    this.dirty = true;
   }
 }
 
