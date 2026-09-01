@@ -38,7 +38,7 @@ flowchart TB
     V --> R --> MU --> E
   end
   E --> F --> VR[Integrity-checked browser replay]
-  B[Solari Browser release verifier] -->|site-tool calls + DOM/hash/replay assertions| VR
+  B[Solari Browser release verifier] -->|numeric form + DOM/hash/replay assertions| VR
   B --> EV[rrweb + screenshots + assertion report]
 ```
 

@@ -32,4 +32,11 @@ describe("AgentTrial", () => {
     expect(() => trial.recordAction({ drive: 99, turn: 0, durationMs: 500 })).toThrow(/drive/);
     expect(() => trial.recordAction({ drive: 0, turn: 0, durationMs: 99 })).toThrow(/durationMs/);
   });
+
+  it("enforces the total simulated-time budget before recording an action", () => {
+    const trial = new AgentTrial();
+    trial.reset(42, 0);
+    for (let index = 0; index < 30; index += 1) trial.recordAction({ drive: 0, turn: 0, durationMs: 2_000 });
+    expect(() => trial.recordAction({ drive: 0, turn: 0, durationMs: 100 })).toThrow(/time budget/);
+  });
 });

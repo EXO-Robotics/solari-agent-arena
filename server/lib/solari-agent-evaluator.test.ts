@@ -47,4 +47,14 @@ describe("Solari agent transcript evaluator", () => {
       clientFactory: () => ({ create: async () => fakeSandbox(async () => { throw new Error("unavailable"); }) }),
     })).rejects.toThrow(/teardown_unconfirmed/);
   });
+
+  it("revalidates direct evaluator calls before creating a Sandbox", async () => {
+    let created = false;
+    await expect(evaluateAgentTranscriptInSolari({
+      transcript: { ...transcript, actions: [{ sequence: 0, drive: 99, turn: 0, durationMs: 100 }] },
+      agentLabel: "test-agent", runId: "invalid-direct", startedAt: new Date(0).toISOString(), apiKey: "test",
+      clientFactory: () => ({ create: async () => { created = true; return fakeSandbox(); } }),
+    })).rejects.toThrow(/drive/);
+    expect(created).toBe(false);
+  });
 });

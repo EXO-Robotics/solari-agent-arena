@@ -20,6 +20,27 @@ const stable = (value) => Array.isArray(value) ? value.map(stable) : value && ty
 const canonical = (value) => JSON.stringify(stable(value));
 const sha256 = (value) => createHash("sha256").update(typeof value === "string" ? value : canonical(value)).digest("hex");
 
+function validateTranscript(value, course) {
+  if (!course || course.schemaVersion !== "solari.arena.course.v1" || !Array.isArray(course.checkpoints)) throw new Error("invalid-course-contract");
+  if (![course.maxSeconds, course.maxActions, course.maxActionDurationMs, course.maxDrive, course.maxTurn].every(Number.isFinite)) throw new Error("invalid-course-limits");
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("transcript-must-be-an-object");
+  if (Object.keys(value).sort().join(",") !== "actions,courseId,schemaVersion,seed") throw new Error("non-canonical-transcript-fields");
+  if (value.schemaVersion !== "solari.arena.agent-transcript.v1" || value.courseId !== course.courseId) throw new Error("transcript-contract-mismatch");
+  if (!Number.isSafeInteger(value.seed) || value.seed < 0 || value.seed > 0xffff_ffff) throw new Error("invalid-transcript-seed");
+  if (!Array.isArray(value.actions) || value.actions.length > course.maxActions) throw new Error("invalid-transcript-action-count");
+  let commandedMs = 0;
+  const actions = value.actions.map((action, index) => {
+    if (!action || typeof action !== "object" || Array.isArray(action) || Object.keys(action).sort().join(",") !== "drive,durationMs,sequence,turn") throw new Error(`invalid-action-fields:${index}`);
+    if (action.sequence !== index || ![action.drive, action.turn, action.durationMs].every(Number.isFinite)) throw new Error(`invalid-action-values:${index}`);
+    if (Math.abs(action.drive) > course.maxDrive || Math.abs(action.turn) > course.maxTurn) throw new Error(`action-out-of-range:${index}`);
+    if (!Number.isInteger(action.durationMs) || action.durationMs < 100 || action.durationMs > course.maxActionDurationMs) throw new Error(`invalid-action-duration:${index}`);
+    commandedMs += action.durationMs;
+    return { sequence: index, drive: action.drive, turn: action.turn, durationMs: action.durationMs };
+  });
+  if (commandedMs > course.maxSeconds * 1_000) throw new Error("transcript-time-budget-exceeded");
+  return { schemaVersion: value.schemaVersion, courseId: value.courseId, seed: value.seed, actions };
+}
+
 function seededYaw(seed) {
   let state = seed >>> 0;
   state = (state + 0x6d2b79f5) >>> 0;
@@ -123,8 +144,9 @@ async function main() {
   const modelPath = process.argv[3] ?? "/work/h1-sagittal.xml";
   const coursePath = process.argv[4] ?? "/work/course.json";
   const outputPath = process.argv[5] ?? "/work/result.json";
-  const { transcript } = JSON.parse(await readFile(inputPath, "utf8"));
+  const input = JSON.parse(await readFile(inputPath, "utf8"));
   const course = JSON.parse(await readFile(coursePath, "utf8"));
+  const transcript = validateTranscript(input.transcript, course);
   const xml = await readFile(modelPath, "utf8");
   const module = await loadMujoco(); const model = module.MjModel.from_xml_string(xml); const data = new module.MjData(model);
   const engine = makeEngine(module, model, data); const samples = []; const actionResults = [];
@@ -169,7 +191,7 @@ async function main() {
     checkpoints, checkpointsTotal: course.checkpoints.length,
     score: Math.max(0, Math.round(checkpoints * 2_500 + distance * 100 - collisions * 1_000 - engine.energy * 0.01 - finalFrame.time * 10)),
     timeSeconds: finalFrame.time, collisions, distanceMeters: distance, topSpeedMps: topSpeed, energyJoules: engine.energy,
-    actionsUsed: transcript.actions.length,
+    actionsUsed: actionResults.length,
   };
   data.delete(); model.delete();
   const artifact = { outcome, metrics, actionResults, telemetry: { sampleCount: samples.length, hash: telemetryHash, samples } };

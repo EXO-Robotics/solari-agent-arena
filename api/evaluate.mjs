@@ -9,8 +9,6 @@ function send(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
-let evaluationInFlight = false;
-
 function authorized(request, expected) {
   const actual = String(request.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
   const left = Buffer.from(actual);
@@ -38,7 +36,6 @@ export default async function handler(request, response) {
   if (!process.env.SOLARI_API_KEY) return send(response, 503, { error: "Isolated Evaluation is not configured on this deployment." });
   if (!process.env.SOLARI_EVALUATION_TOKEN) return send(response, 503, { error: "Isolated Evaluation admission control is not configured." });
   if (!authorized(request, process.env.SOLARI_EVALUATION_TOKEN)) return send(response, 401, { error: "A demo access code is required for live isolated runs." });
-  if (evaluationInFlight) return send(response, 429, { error: "One isolated run is already in progress. Try again shortly." });
 
   let input;
   try {
@@ -47,7 +44,6 @@ export default async function handler(request, response) {
     return send(response, 400, { error: String(error?.message ?? error) });
   }
 
-  evaluationInFlight = true;
   try {
     const startedAt = new Date().toISOString();
     const run = await evaluateInSolari({
@@ -61,7 +57,5 @@ export default async function handler(request, response) {
   } catch (error) {
     console.error("Isolated Evaluation infrastructure failure", error);
     return send(response, 502, { error: "The isolated evaluator did not issue an artifact. No authoritative result was created." });
-  } finally {
-    evaluationInFlight = false;
   }
 }

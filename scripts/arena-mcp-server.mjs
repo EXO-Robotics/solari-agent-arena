@@ -5,8 +5,8 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { Solari } from "@solarisdk/browser";
 import * as z from "zod/v4";
-
-const DEFAULT_ARENA_URL = "https://solari-agent-arena.vercel.app/?agent=1";
+import { canonicalJson } from "../server/lib/evidence.mjs";
+import { DEFAULT_ARENA_URL, resolveArenaUrl } from "../server/lib/arena-url.mjs";
 
 function hash(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -21,18 +21,18 @@ class ArenaBrowser {
 
   async open(url = process.env.ARENA_URL || DEFAULT_ARENA_URL, seed = 42) {
     if (!process.env.SOLARI_API_KEY) throw new Error("SOLARI_API_KEY is required by the local MCP bridge.");
-    const target = new URL(url);
-    if (!/^https?:$/.test(target.protocol)) throw new Error("Arena URL must use http or https.");
-    target.searchParams.set("agent", "1");
+    const target = resolveArenaUrl(url);
     await this.close(false);
     this.client = new Solari({ apiKey: process.env.SOLARI_API_KEY });
     this.browser = await this.client.launch({ recording: true });
     this.page = await this.browser.newPage();
-    this.url = target.href;
+    this.url = target;
     this.startedAt = new Date().toISOString();
     await this.page.goto(this.url, { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await this.page.waitForFunction(() => typeof window.solariAgentArena?.observe === "function", null, { timeout: 60_000 });
-    return this.page.evaluate((nextSeed) => window.solariAgentArena.reset(nextSeed), seed);
+    await this.page.getByTestId("agent-observation-json").waitFor({ timeout: 60_000 });
+    await this.page.locator("#agent-seed").fill(String(seed));
+    await this.page.getByRole("button", { name: "RESET TRIAL" }).click();
+    return this.observe();
   }
 
   requirePage() {
@@ -40,16 +40,24 @@ class ArenaBrowser {
     return this.page;
   }
 
-  observe() {
-    return this.requirePage().evaluate(() => window.solariAgentArena.observe());
+  async observe() {
+    return JSON.parse(await this.requirePage().getByTestId("agent-observation-json").inputValue());
   }
 
-  act(input) {
-    return this.requirePage().evaluate((action) => window.solariAgentArena.act(action), input);
+  async act(input) {
+    const page = this.requirePage();
+    const transcript = await this.transcript();
+    const sequence = transcript.actions.length;
+    await page.locator("#agent-drive").fill(String(input.drive));
+    await page.locator("#agent-turn").fill(String(input.turn));
+    await page.locator("#agent-duration").fill(String(input.durationMs));
+    await page.getByTestId("agent-execute").click();
+    await page.waitForFunction((receipt) => document.querySelector('[data-testid="agent-execute"]')?.getAttribute("data-receipt") === receipt, String(sequence), { timeout: 10_000 });
+    return this.observe();
   }
 
-  transcript() {
-    return this.requirePage().evaluate(() => window.solariAgentArena.transcript());
+  async transcript() {
+    return JSON.parse(await this.requirePage().getByTestId("agent-transcript-json").inputValue());
   }
 
   screenshot() {
@@ -89,7 +97,7 @@ class ArenaBrowser {
       arenaUrl: this.url,
       startedAt: this.startedAt,
       completedAt: new Date().toISOString(),
-      transcriptHash: transcript ? hash(JSON.stringify(transcript)) : null,
+      transcriptHash: transcript ? hash(canonicalJson(transcript)) : null,
       screenshotHash: screenshot ? hash(screenshot) : null,
       replayHash: replay ? hash(replay) : null,
     };

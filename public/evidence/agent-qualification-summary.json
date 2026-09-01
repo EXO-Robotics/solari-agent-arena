@@ -1,6 +1,6 @@
 {
   "schemaVersion": "solari.arena.agent-qualification.v1",
-  "generatedAt": "2026-09-01T11:50:43.264Z",
+  "generatedAt": "2026-09-01T12:18:43.034Z",
   "seed": 42,
   "courseId": "arena-slalom-ramp-v1",
   "transcriptHash": "069e233483049d5c223b29b694d35b944dfc5b8b635c34c8ad079653ce5357fc",
@@ -8,7 +8,7 @@
   "cases": [
     {
       "case": "valid-agent",
-      "runId": "cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f",
+      "runId": "0472ad47-5a2c-4c7f-9dd5-a590ada0880d",
       "outcome": {
         "status": "succeeded",
         "reason": "course_complete",
@@ -26,12 +26,12 @@
         "actionsUsed": 21
       },
       "telemetryHash": "f87f265301a8d64d54a85761f912cc5a5e812af96f46bf654a2ece03571dfbcf",
-      "resultHash": "c1228605200462728831938be0344a7e414496fb7f1749615c775b80aed055be",
+      "resultHash": "5e58cd178d5fc269b249b04968db3b79b64f788e1c42aa5a30257e36b05e4800",
       "sandboxTerminated": true
     },
     {
       "case": "valid-agent-repeat",
-      "runId": "4421a877-00ec-4e73-a711-7fcba6141c60",
+      "runId": "41501a74-9b9d-4590-b98b-9caee7218691",
       "outcome": {
         "status": "succeeded",
         "reason": "course_complete",
@@ -49,7 +49,7 @@
         "actionsUsed": 21
       },
       "telemetryHash": "f87f265301a8d64d54a85761f912cc5a5e812af96f46bf654a2ece03571dfbcf",
-      "resultHash": "062f96018cc1dc961eeef19de3151234d32b843ddac4b29e56caa0f07be13d6b",
+      "resultHash": "e7d5fb47c8e2736d6c5280892139b3eb732b989cddab1a63aa69565f1006b269",
       "sandboxTerminated": true
     }
   ]

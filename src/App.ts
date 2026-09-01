@@ -243,7 +243,7 @@ export class App {
       this.requireElement("#console-output").classList.add("console--error");
     });
     document.addEventListener("visibilitychange", () => {
-      if (document.hidden && this.session.phase === "running") this.session.pause();
+      if (this.mode !== "agent" && document.hidden && this.session.phase === "running") this.session.pause();
     });
     window.addEventListener("beforeunload", () => this.dispose(), { once: true });
   }
@@ -446,6 +446,18 @@ export class App {
     this.requireElement("#mode-isolated").classList.toggle("trust-mode--active", mode === "isolated");
     this.renderTrustState();
     if (mode === "agent") {
+      this.powerEnabled = true;
+      this.engine?.setActuationEnabled(true);
+      this.engine?.setActuatorStrength(1);
+      this.engine?.setGroundFriction(1.05);
+      this.simulationSpeed = 1;
+      this.requireElement("#power-button").textContent = "POWER ON";
+      this.requireElement("#power-button").classList.remove("power--off");
+      this.requireInput("#strength").value = "1";
+      this.requireElement("#strength-value").textContent = "100%";
+      this.requireInput("#friction").value = "1.05";
+      this.requireElement("#friction-value").textContent = "1.05";
+      this.root.querySelectorAll<HTMLElement>("[data-speed]").forEach((item) => item.classList.toggle("segment__button--active", item.dataset.speed === "1"));
       this.setTelemetryPresentation("live");
       this.selectPanel("agent");
       this.scene?.setAgentCourseProgress(true, 0);
@@ -762,6 +774,7 @@ export class App {
       "#agent-actions": `${observation.actionsUsed} / ${observation.actionBudget}`,
     };
     for (const [selector, value] of Object.entries(values)) this.requireElement(selector).textContent = value;
+    this.requireInput("#agent-observation-json").value = JSON.stringify(observation);
     this.scene?.setAgentCourseProgress(this.mode === "agent", observation.checkpoints.reached);
     const recent = this.agentTrial.transcript().actions.slice(-5).map((action) => `#${action.sequence} d=${action.drive.toFixed(2)} t=${action.turn.toFixed(2)} ${action.durationMs}ms`);
     this.requireElement("#agent-transcript").textContent = recent.length ? recent.join("\n") : "No actions recorded.";
@@ -992,6 +1005,7 @@ export class App {
                 <button id="agent-execute" data-testid="agent-execute" data-receipt="-1">EXECUTE ACTION</button>
               </div>
               <pre id="agent-transcript" class="agent-transcript">No actions recorded.</pre>
+              <textarea id="agent-observation-json" class="agent-transcript-json" data-testid="agent-observation-json" tabindex="-1" aria-hidden="true"></textarea>
               <textarea id="agent-transcript-json" class="agent-transcript-json" data-testid="agent-transcript-json" tabindex="-1" aria-hidden="true"></textarea>
               <div class="evaluation-input"><label for="agent-seed">SEED</label><input id="agent-seed" type="number" min="0" max="4294967295" value="42" /><span>60 S / 120 ACTIONS</span></div>
               <div id="agent-interface" class="agent-interface" data-testid="agent-interface" data-api-version="${AGENT_TOOL_VERSION}">INITIALIZING TOOL INTERFACES…</div>

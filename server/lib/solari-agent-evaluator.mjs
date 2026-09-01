@@ -1,8 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { SandboxClient } from "@solarisdk/sandbox";
 import { finalizeRun, sha256 } from "./evidence.mjs";
+import { validateAgentEvaluationRequest } from "./agent-validation.mjs";
 
-const COMMAND_DEADLINE_MS = 45_000;
+const COMMAND_DEADLINE_MS = 60_000;
 const SANDBOX_IDLE_TIMEOUT_MS = 90_000;
 const UNPACK_DEADLINE_MS = 15_000;
 
@@ -41,6 +42,9 @@ export function parseAgentRunnerOutput(result, artifactText) {
 }
 
 export async function evaluateAgentTranscriptInSolari({ transcript, agentLabel, runId, startedAt, apiKey, template = "base", resources, clientFactory = (options) => new SandboxClient(options) }) {
+  const validated = validateAgentEvaluationRequest({ transcript, agentLabel });
+  const canonicalTranscript = validated.transcript;
+  const canonicalAgentLabel = validated.agentLabel;
   const [runner, packageJson, packageLock, dependencyBundle, model, course, rootLockText] = await Promise.all([
     readFile(new URL("../runner/agent-runner.mjs", import.meta.url), "utf8"),
     readFile(new URL("../runner/package.json", import.meta.url), "utf8"),
@@ -50,11 +54,11 @@ export async function evaluateAgentTranscriptInSolari({ transcript, agentLabel, 
     readFile(new URL("../../src/agent/course.json", import.meta.url), "utf8"),
     readFile(new URL("../../package-lock.json", import.meta.url), "utf8"),
   ]);
-  const transcriptHash = sha256(transcript);
+  const transcriptHash = sha256(canonicalTranscript);
   const rootLock = JSON.parse(rootLockText);
   const sdkVersion = rootLock.packages?.["node_modules/@solarisdk/sandbox"]?.version;
   if (typeof sdkVersion !== "string") throw new Error("sandbox_sdk_version_missing_from_lockfile");
-  const client = clientFactory({ apiKey, baseUrl: "https://api.getsolari.com", callTimeoutMs: 45_000 });
+  const client = clientFactory({ apiKey, baseUrl: "https://api.getsolari.com", callTimeoutMs: 90_000 });
   const wallStart = Date.now(); let sandbox; let sandboxTerminated = false; let payload; let infrastructureError; let sandboxIdHash;
   try {
     sandbox = await client.create({
@@ -70,7 +74,7 @@ export async function evaluateAgentTranscriptInSolari({ transcript, agentLabel, 
       sandbox.files.write("/work/package-lock.json", packageLock),
       sandbox.files.write("/work/h1-sagittal.xml", model),
       sandbox.files.write("/work/course.json", course),
-      sandbox.files.write("/work/input.json", JSON.stringify({ transcript })),
+      sandbox.files.write("/work/input.json", JSON.stringify({ transcript: canonicalTranscript })),
       sandbox.files.upload("/work/runner-dependencies.tgz", dependencyBundle),
     ]);
     const unpack = await sandbox.commands.run("tar", { args: ["-xzf", "/work/runner-dependencies.tgz", "-C", "/work"], cwd: "/work", timeoutMs: UNPACK_DEADLINE_MS });
@@ -91,8 +95,8 @@ export async function evaluateAgentTranscriptInSolari({ transcript, agentLabel, 
   const completedAt = new Date().toISOString();
   return finalizeRun({
     schemaVersion: "solari.arena.agent-run.v1", runId,
-    controllerHash: transcriptHash, transcriptHash, seed: transcript.seed,
-    agent: { label: agentLabel, runtime: "external-not-isolated", controllerArtifact: "bounded-action-transcript" },
+    controllerHash: transcriptHash, transcriptHash, seed: canonicalTranscript.seed,
+    agent: { label: canonicalAgentLabel, runtime: "external-not-isolated", controllerArtifact: "bounded-action-transcript" },
     execution: {
       provider: "solari", product: "sandbox", sdkVersion, sandboxIdHash, templateId: template, authoritative: true,
       isolation: { type: "hardware-isolated-microvm", basis: "solari-product-documentation", attested: false },

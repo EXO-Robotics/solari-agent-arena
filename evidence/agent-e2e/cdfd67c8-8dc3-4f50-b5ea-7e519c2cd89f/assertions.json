@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "solari.arena.agent-browser-proof.v1",
+  "deployedUrl": "https://solari-agent-arena.vercel.app",
+  "deploymentCommit": "8ee3d76e2a0e723792e2a7882a8787f260f1a4d1",
+  "runId": "cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f",
+  "sessionIdHash": "9670163587a39c0362502a0e6c9457c47e8a127d7c1506055db17b37e7b46c60",
+  "startedAt": "2026-09-01T12:02:32.681Z",
+  "completedAt": "2026-09-01T12:05:05.505Z",
+  "observations": {
+    "agentToolApiVersion": "solari.arena.agent-tools.v1",
+    "zeroCostObservation": true,
+    "browserTrial": {
+      "phase": "complete",
+      "checkpoints": "5 / 5",
+      "collisions": 0,
+      "actions": "21 / 120",
+      "simulatedTime": "26.69 S"
+    },
+    "artifact": {
+      "run-id": "cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f",
+      "controller-hash": "069e233483049d5c223b29b694d35b944dfc5b8b635c34c8ad079653ce5357fc",
+      "outcome": "SUCCEEDED",
+      "checkpoints": "5 / 5",
+      "score": "14,304",
+      "time": "26.12 S",
+      "collisions": "0",
+      "seed": "42",
+      "telemetry-hash": "f87f265301a8d64d54a85761f912cc5a5e812af96f46bf654a2ece03571dfbcf",
+      "result-hash": "c1228605200462728831938be0344a7e414496fb7f1749615c775b80aed055be"
+    },
+    "replayState": "COMPLETE"
+  },
+  "hashes": {
+    "artifact": "c1228605200462728831938be0344a7e414496fb7f1749615c775b80aed055be",
+    "transcript": "069e233483049d5c223b29b694d35b944dfc5b8b635c34c8ad079653ce5357fc",
+    "trialScreenshot": "d9b2ccc638dcf5d110b6877f16d3e74eec0de58af77bcf7a46512ce66127f736",
+    "artifactScreenshot": "f247824f3f47aaee9baefdb112c936929af4d9ab3436fdb5fd366af64db2e2bf",
+    "replayScreenshot": "6988295dfbdf45ed856e083239a2fd68d9e9d749bd43a253b63efecb29246e5a",
+    "browserReplay": "8d69e6c7e9f3f64a929bf8a14f92a94fb759a69606ce2338af88fe4ab74908d6"
+  },
+  "passed": true
+}

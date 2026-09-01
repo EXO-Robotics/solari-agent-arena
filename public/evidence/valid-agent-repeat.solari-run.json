@@ -1,6 +1,6 @@
 {
   "schemaVersion": "solari.arena.agent-run.v1",
-  "runId": "4421a877-00ec-4e73-a711-7fcba6141c60",
+  "runId": "41501a74-9b9d-4590-b98b-9caee7218691",
   "controllerHash": "069e233483049d5c223b29b694d35b944dfc5b8b635c34c8ad079653ce5357fc",
   "transcriptHash": "069e233483049d5c223b29b694d35b944dfc5b8b635c34c8ad079653ce5357fc",
   "seed": 42,
@@ -13,7 +13,7 @@
     "provider": "solari",
     "product": "sandbox",
     "sdkVersion": "0.1.2",
-    "sandboxIdHash": "5d25fc7ac79611710d452d2e8272cd436f22cf6485dedee8229f805ef3537805",
+    "sandboxIdHash": "8a09e881350bea6acb3020be213215b3da6e86cf1e6c9b64fcd52e7a9e482fc2",
     "templateId": "base",
     "authoritative": true,
     "isolation": {
@@ -23,14 +23,14 @@
     },
     "authoritativeBoundary": "validated-transcript-replay-and-scoring",
     "simulator": "mujoco-wasm-3.12.0",
-    "runnerHash": "1616b277b4097def3140b83d6eb0b0ae55ab4d0ad20515aa7ac0aa3b0c98a012",
+    "runnerHash": "3e8529e66a3dc4c7a2a1fd470b3eb88ace9101617a7cf3961486b46b7e265ec8",
     "modelHash": "03ae3bc817fa4e748dd27e14a5cd84993994df910c2eeff412ef9bfc8b9912ec",
     "courseHash": "294f6b952620a4db496890b58a6d38cc2379bdfe03ce5946c5ebc60ff0c617fb",
     "dependencyBundleHash": "cbf0e789910f5538a0565438a1c05f7a4e4561f2b99c562deef4ec71d3de29a2",
-    "startedAt": "2026-09-01T11:50:35.040Z",
-    "completedAt": "2026-09-01T11:50:43.248Z",
-    "wallTimeMs": 8208,
-    "commandDeadlineMs": 45000,
+    "startedAt": "2026-09-01T12:18:34.647Z",
+    "completedAt": "2026-09-01T12:18:43.018Z",
+    "wallTimeMs": 8370,
+    "commandDeadlineMs": 60000,
     "unpackDeadlineMs": 15000,
     "sandboxIdleTimeoutMs": 90000,
     "networkPolicy": "not-enforced-no-egress-required",
@@ -33439,5 +33439,5 @@
       }
     ]
   },
-  "resultHash": "062f96018cc1dc961eeef19de3151234d32b843ddac4b29e56caa0f07be13d6b"
+  "resultHash": "e7d5fb47c8e2736d6c5280892139b3eb732b989cddab1a63aa69565f1006b269"
 }

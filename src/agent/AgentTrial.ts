@@ -17,6 +17,7 @@ export class AgentTrial {
   private checkpointIndex = 0;
   private collisions = 0;
   private collisionActive = false;
+  private commandedMs = 0;
   private readonly actions: AgentAction[] = [];
 
   reset(seed: number, simulationTime: number): void {
@@ -27,6 +28,7 @@ export class AgentTrial {
     this.checkpointIndex = 0;
     this.collisions = 0;
     this.collisionActive = false;
+    this.commandedMs = 0;
     this.actions.length = 0;
   }
 
@@ -34,8 +36,10 @@ export class AgentTrial {
     if (this.phase !== "running") throw new Error(`Agent trial is ${this.phase}; reset before acting.`);
     validateAgentAction(input);
     if (this.actions.length >= AGENT_COURSE.maxActions) throw new Error("Agent action budget exhausted.");
+    if (this.commandedMs + input.durationMs > AGENT_COURSE.maxSeconds * 1_000) throw new Error("Agent simulated-time budget exhausted.");
     const action = Object.freeze({ sequence: this.actions.length, ...input });
     this.actions.push(action);
+    this.commandedMs += input.durationMs;
     return action;
   }
 

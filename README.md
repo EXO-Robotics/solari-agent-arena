@@ -2,7 +2,7 @@
 
 > Let an AI agent see a robot, control it through bounded tools, and cross an obstacle course. Preview instantly in the browser; score only by deterministic replay inside Solari.
 
-[Live arena](https://solari-agent-arena.vercel.app/?agent=1) · [Authoritative agent replay](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid-agent.solari-run.json) · [Architecture](docs/ARCHITECTURE.md) · [Qualification ledger](docs/QUALIFICATION.md)
+[Live arena](https://solari-agent-arena.vercel.app/?agent=1) · [Authoritative agent replay](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid-agent.solari-run.json) · [Frozen agent E2E proof](evidence/agent-e2e/cdfd67c8-8dc3-4f50-b5ea-7e519c2cd89f/assertions.json) · [Architecture](docs/ARCHITECTURE.md)
 
 Solari Agent Arena turns [Robot-3D-Sim](https://github.com/EXO-Robotics/Robot-3D-Sim) into an embodied-agent benchmark. A local model, Codex, or browser-driving agent gets four narrow operations—reset, observe, act, and transcript—while looking at the same MuJoCo/Three.js arena as the human reviewer. The agent must visit five checkpoints, route around the ramp, and reach the final beacon.
 
@@ -86,7 +86,7 @@ codex mcp add solari-agent-arena -- \
 
 Then restart Codex and inspect `/mcp`. Codex’s official stdio/config options are documented in [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp). Any local model host that supports stdio MCP can use the same Node command.
 
-The MCP bridge reads `SOLARI_API_KEY` only in its local Node process. The visited page never receives it.
+The MCP bridge reads `SOLARI_API_KEY` only in its local Node process. The visited page never receives it. `arena_open` is origin-locked to `ARENA_URL` (production by default); set that variable deliberately to use a local or alternate deployment.
 
 ### Safari or ordinary browser automation
 
@@ -176,6 +176,8 @@ npx vercel deploy --prod
 ```
 
 Keep `SOLARI_EVALUATION_ENABLED=false` on unattended public deployments. Checked-in authoritative replays stay public; paid live evaluation requires deliberately enabling it plus the separate admission token. The admission token is not a Solari credential.
+
+The API deliberately makes no in-process “one run at a time” claim: Vercel instances do not share memory. Before enabling live evaluation for multiple reviewers, add an account-level Solari quota and a durable distributed rate/lease control. The checked-in public deployment remains disabled.
 
 ## Relationship to Robot-3D-Sim
 
