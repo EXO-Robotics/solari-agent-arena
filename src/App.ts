@@ -6,6 +6,9 @@ import { MujocoEngine } from "./physics/MujocoEngine";
 import { RobotScene, type CameraMode } from "./renderer/RobotScene";
 import type { SensorFrame } from "./sim/types";
 import { TelemetryBuffer } from "./telemetry/TelemetryBuffer";
+import { validateControllerSource } from "./control/validation";
+import type { AuthoritativeRun } from "./evidence/contract";
+import { verifyArtifactIntegrity } from "./evidence/verify";
 
 const CONTROL_DT = 0.01;
 const TELEMETRY_DT = 0.04;
@@ -26,6 +29,12 @@ export class App {
   private powerEnabled = true;
   private animationId = 0;
   private readonly heldControls = new Set<string>();
+  private mode: "preview" | "isolated" = "preview";
+  private evaluationState: "empty" | "pending" | "integrityChecked" | "failed" = "empty";
+  private authoritativeRun: AuthoritativeRun | null = null;
+  private replayIndex = 0;
+  private replayPlaying = false;
+  private replayElapsed = 0;
 
   constructor(private readonly root: HTMLElement) {
     this.root.innerHTML = this.template();
@@ -44,6 +53,7 @@ export class App {
       this.renderModelStats();
       window.setTimeout(() => this.requireElement("#boot").classList.add("boot--hidden"), 420);
       this.previousFrameTime = performance.now();
+      await this.loadEvidenceFromUrl();
       this.animationId = requestAnimationFrame((time) => this.animate(time));
     } catch (error) {
       this.fail(`Simulator initialization failed: ${String(error)}`);
@@ -63,6 +73,16 @@ export class App {
     if (!engine || !scene) return;
     const wallDt = Math.min(0.05, (now - this.previousFrameTime) / 1000);
     this.previousFrameTime = now;
+    if (this.mode === "isolated" && this.authoritativeRun) {
+      const sample = this.advanceReplay(wallDt);
+      if (sample) {
+        engine.restoreState(sample.qpos, sample.qvel);
+        scene.update(sample.frame);
+        this.renderReplayFrame(sample.frame);
+      }
+      this.animationId = requestAnimationFrame((time) => this.animate(time));
+      return;
+    }
     const active = this.session.phase === "running" || (!this.powerEnabled && this.session.phase === "ready");
     if (active) this.accumulator = Math.min(0.05, this.accumulator + wallDt * this.simulationSpeed);
 
@@ -103,6 +123,8 @@ export class App {
   }
 
   private bindStaticUi(): void {
+    this.requireElement("#mode-preview").addEventListener("click", () => this.setMode("preview"));
+    this.requireElement("#mode-isolated").addEventListener("click", () => this.setMode("isolated"));
     this.requireElement("#run-button").addEventListener("click", () => this.toggleRun());
     this.requireElement("#reset-button").addEventListener("click", () => this.reset());
     this.requireElement("#power-button").addEventListener("click", () => this.togglePower());
@@ -143,9 +165,24 @@ export class App {
     });
     this.requireElement("#compile-button").addEventListener("click", () => {
       const source = this.requireElement("#controller-source") as HTMLTextAreaElement;
+      const validation = validateControllerSource(source.value);
+      if (!validation.valid) {
+        this.requireElement("#console-output").textContent = validation.reason ?? "Controller validation failed.";
+        this.requireElement("#console-output").classList.add("console--error");
+        return;
+      }
       this.requireElement("#console-output").textContent = "Compiling controller…";
       this.controller.compile(source.value);
     });
+    this.requireElement("#isolated-button").addEventListener("click", () => void this.runIsolatedEvaluation());
+    this.requireElement("#replay-button").addEventListener("click", () => this.toggleReplay());
+    this.requireInput("#replay-scrubber").addEventListener("input", (event) => {
+      this.replayPlaying = false;
+      this.replayIndex = Number((event.currentTarget as HTMLInputElement).value);
+      this.replayElapsed = 0;
+      this.setReplayState("paused");
+    });
+    this.requireElement("#download-evidence").addEventListener("click", () => this.downloadEvidence());
     this.requireElement("#restore-button").addEventListener("click", () => {
       (this.requireElement("#controller-source") as HTMLTextAreaElement).value = BASELINE_CONTROLLER;
       this.controller.compile(BASELINE_CONTROLLER);
@@ -331,6 +368,203 @@ export class App {
     this.root.querySelectorAll("[data-panel]").forEach((item) => item.classList.toggle("panel-tab--active", (item as HTMLElement).dataset.panel === panel));
     this.requireElement("#lab-panel").classList.toggle("inspector-panel--active", panel === "lab");
     this.requireElement("#code-panel").classList.toggle("inspector-panel--active", panel === "code");
+    this.requireElement("#evidence-panel").classList.toggle("inspector-panel--active", panel === "evidence");
+  }
+
+  private setMode(mode: "preview" | "isolated"): void {
+    this.mode = mode;
+    this.root.querySelector(".app-shell")?.classList.toggle("app-shell--isolated", mode === "isolated");
+    this.requireElement("#mode-preview").classList.toggle("trust-mode--active", mode === "preview");
+    this.requireElement("#mode-isolated").classList.toggle("trust-mode--active", mode === "isolated");
+    this.renderTrustState();
+    if (mode === "isolated") {
+      if (this.session.phase === "running") this.session.pause();
+      this.selectPanel(this.authoritativeRun ? "evidence" : "code");
+    } else {
+      this.replayPlaying = false;
+      this.selectPanel("lab");
+      this.reset();
+    }
+  }
+
+  private renderTrustState(): void {
+    const trust = this.requireElement("#trust-status");
+    const viewport = this.requireElement("#viewport-mode");
+    const intro = this.requireElement("#evidence-intro-title");
+    const detail = this.requireElement("#evidence-intro-detail");
+    if (this.mode === "preview") {
+      trust.textContent = "NON-ISOLATED / NON-AUTHORITATIVE";
+      viewport.textContent = "LOCAL PREVIEW";
+      return;
+    }
+    const states = {
+      empty: ["ISOLATED EVALUATION / NO ARTIFACT LOADED", "EVALUATION SETUP"],
+      pending: ["ISOLATED EVALUATION / REQUEST PENDING", "EVALUATION PENDING"],
+      integrityChecked: ["SOLARI ARTIFACT / INTEGRITY CHECKED", "RECORDED REPLAY"],
+      failed: ["ISOLATED EVALUATION / NO ARTIFACT ISSUED", "EVALUATION FAILED"],
+    } as const;
+    [trust.textContent, viewport.textContent] = states[this.evaluationState];
+    const integrityChecked = this.evaluationState === "integrityChecked";
+    intro.textContent = integrityChecked ? "UNSIGNED ARTIFACT / INTEGRITY CHECKED" : "NO VERIFIED ARTIFACT LOADED";
+    detail.textContent = integrityChecked
+      ? "Hashes are self-consistent and the file came from this deployment. Issuer authenticity is not cryptographically signed."
+      : "Authority exists only after the server returns a valid Solari run and this browser checks its hashes.";
+  }
+
+  private clearEvidence(): void {
+    this.authoritativeRun = null;
+    for (const element of this.root.querySelectorAll<HTMLElement>("#evidence-panel dd, #evidence-panel code")) element.textContent = "—";
+    const replay = this.requireElement("#replay-state");
+    replay.dataset.state = "empty";
+    replay.textContent = "EMPTY";
+    this.requireInput("#replay-scrubber").max = "0";
+    this.requireInput("#replay-scrubber").value = "0";
+  }
+
+  private async runIsolatedEvaluation(): Promise<void> {
+    const source = (this.requireElement("#controller-source") as HTMLTextAreaElement).value;
+    const validation = validateControllerSource(source);
+    if (!validation.valid && !validation.capability) {
+      this.showEvaluationStatus(validation.reason ?? "Controller validation failed.", true);
+      return;
+    }
+    const seed = Number(this.requireInput("#evaluation-seed").value);
+    const accessCode = this.requireInput("#evaluation-access-code").value;
+    const button = this.requireElement("#isolated-button") as HTMLButtonElement;
+    button.disabled = true;
+    this.clearEvidence();
+    this.evaluationState = "pending";
+    this.setMode("isolated");
+    this.showEvaluationStatus("Requesting a server-side isolated evaluation…", false);
+    try {
+      const response = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(accessCode ? { authorization: `Bearer ${accessCode}` } : {}) },
+        body: JSON.stringify({ controller: source, seed }),
+      });
+      const text = await response.text();
+      let body: Record<string, unknown>;
+      try { body = JSON.parse(text) as Record<string, unknown>; }
+      catch { throw new Error("Isolated Evaluation requires the server runtime. Start with `vercel dev`, not Vite alone."); }
+      if (!response.ok) throw new Error(String(body.error ?? `Evaluation failed (${response.status}).`));
+      await this.loadEvidence(body);
+      this.showEvaluationStatus("Artifact integrity checked. Ready to replay; issuer signature is not claimed.", false);
+    } catch (error) {
+      this.evaluationState = "failed";
+      this.renderTrustState();
+      this.showEvaluationStatus(String(error instanceof Error ? error.message : error), true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  private async loadEvidenceFromUrl(): Promise<void> {
+    const path = new URLSearchParams(location.search).get("evidence");
+    if (!path) return;
+    try {
+      const url = new URL(path, location.href);
+      if (url.origin !== location.origin || !url.pathname.startsWith("/evidence/") || !url.pathname.endsWith(".json")) {
+        throw new Error("Evidence must be a same-origin /evidence/*.json artifact.");
+      }
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) throw new Error(`Evidence request failed (${response.status}).`);
+      await this.loadEvidence(await response.json());
+      this.setMode("isolated");
+    } catch (error) {
+      this.evaluationState = "failed";
+      this.setMode("isolated");
+      this.showEvaluationStatus(`Evidence failed verification: ${String(error)}`, true);
+    }
+  }
+
+  private async loadEvidence(value: unknown): Promise<void> {
+    const { run } = await verifyArtifactIntegrity(value);
+    this.authoritativeRun = run;
+    this.evaluationState = "integrityChecked";
+    this.replayIndex = 0;
+    this.replayElapsed = 0;
+    this.replayPlaying = false;
+    this.renderEvidence(run);
+    this.selectPanel("evidence");
+    this.setReplayState(run.telemetry.sampleCount > 0 ? "ready" : "unavailable");
+    this.renderTrustState();
+  }
+
+  private advanceReplay(wallDt: number): AuthoritativeRun["telemetry"]["samples"][number] | null {
+    const samples = this.authoritativeRun?.telemetry.samples;
+    if (!samples?.length) return null;
+    if (this.replayPlaying) {
+      this.replayElapsed += wallDt;
+      while (this.replayIndex < samples.length - 1 && this.replayElapsed >= Math.max(0.001, samples[this.replayIndex + 1]!.time - samples[this.replayIndex]!.time)) {
+        this.replayElapsed -= Math.max(0.001, samples[this.replayIndex + 1]!.time - samples[this.replayIndex]!.time);
+        this.replayIndex += 1;
+      }
+      if (this.replayIndex >= samples.length - 1) {
+        this.replayPlaying = false;
+        this.setReplayState("complete");
+      }
+    }
+    this.requireInput("#replay-scrubber").value = String(this.replayIndex);
+    return samples[this.replayIndex] ?? null;
+  }
+
+  private toggleReplay(): void {
+    const samples = this.authoritativeRun?.telemetry.samples;
+    if (!samples?.length) return;
+    if (this.replayIndex >= samples.length - 1) this.replayIndex = 0;
+    this.replayPlaying = !this.replayPlaying;
+    this.setReplayState(this.replayPlaying ? "playing" : "paused");
+  }
+
+  private setReplayState(state: "ready" | "playing" | "paused" | "complete" | "unavailable"): void {
+    const status = this.requireElement("#replay-state");
+    status.dataset.state = state;
+    status.textContent = state.toUpperCase();
+    const replayButton = this.requireElement("#replay-button") as HTMLButtonElement;
+    replayButton.disabled = state === "unavailable";
+    replayButton.textContent = state === "playing" ? "PAUSE REPLAY" : state === "complete" ? "REPLAY AGAIN" : state === "unavailable" ? "NO REPLAY FOR THIS OUTCOME" : "PLAY INTEGRITY-CHECKED REPLAY";
+  }
+
+  private renderReplayFrame(frame: SensorFrame): void {
+    this.requireElement("#metric-time").textContent = frame.time.toFixed(3);
+    this.requireElement("#metric-speed").textContent = Math.max(0, frame.velocity).toFixed(2);
+    this.requireElement("#coord-x").textContent = frame.position.toFixed(1);
+    this.requireElement("#coord-y").textContent = frame.lateral.toFixed(1);
+  }
+
+  private renderEvidence(run: AuthoritativeRun): void {
+    const values: Record<string, string> = {
+      "#evidence-run-id": run.runId,
+      "#evidence-controller-hash": run.controllerHash,
+      "#evidence-outcome": run.outcome.status.toUpperCase(),
+      "#evidence-checkpoints": `${run.metrics.checkpoints} / ${run.metrics.checkpointsTotal}`,
+      "#evidence-score": run.metrics.score.toLocaleString("en-US"),
+      "#evidence-time": `${run.metrics.timeSeconds.toFixed(2)} S`,
+      "#evidence-collisions": String(run.metrics.collisions),
+      "#evidence-telemetry-hash": run.telemetry.hash,
+      "#evidence-result-hash": run.resultHash,
+      "#evidence-seed": String(run.seed),
+    };
+    for (const [selector, value] of Object.entries(values)) this.requireElement(selector).textContent = value;
+    const scrubber = this.requireInput("#replay-scrubber");
+    scrubber.max = String(Math.max(0, run.telemetry.sampleCount - 1));
+    scrubber.value = "0";
+  }
+
+  private showEvaluationStatus(message: string, error: boolean): void {
+    const status = this.requireElement("#evaluation-status");
+    status.textContent = message;
+    status.classList.toggle("console--error", error);
+  }
+
+  private downloadEvidence(): void {
+    if (!this.authoritativeRun) return;
+    const blob = new Blob([JSON.stringify(this.authoritativeRun, null, 2)], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${this.authoritativeRun.runId}.solari-run.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
   }
 
   private setBoot(label: string, progress: number): void {
@@ -363,20 +597,29 @@ export class App {
     return `
       <div class="app-shell">
         <header class="topbar">
-          <div class="brand"><span class="brand__mark">H1</span><span>HUMANOID ROBOT GAMES</span></div>
-          <div class="event-title"><span>FIELD MODE</span><strong>OPEN WORLD / AUTONOMOUS</strong></div>
+          <div class="brand"><span class="brand__mark">SA</span><span>SOLARI AGENT ARENA</span></div>
+          <div class="event-title"><span>ROBOT CONTROLLER EVALUATION</span><strong>PREVIEW FAST / JUDGE IN ISOLATION</strong></div>
           <div class="system-state"><span id="phase-dot" class="status-dot status-dot--loading"></span><span id="phase-label">LOADING</span><small>MUJOCO 3.12 / WASM</small></div>
         </header>
+
+        <section class="trust-switch" aria-label="Evaluation trust boundary">
+          <div class="trust-switch__copy"><small>EXECUTION BOUNDARY</small><strong id="trust-status">NON-ISOLATED / NON-AUTHORITATIVE</strong></div>
+          <div class="trust-switch__modes">
+            <button id="mode-preview" class="trust-mode trust-mode--active"><span>01</span><strong>LOCAL PREVIEW</strong><small>Browser Worker · fast feedback</small></button>
+            <button id="mode-isolated" class="trust-mode"><span>02</span><strong>ISOLATED EVALUATION</strong><small>Solari Sandbox · artifact on success</small></button>
+          </div>
+          <a href="https://github.com/EXO-Robotics/solari-agent-arena#trust-boundary" target="_blank" rel="noreferrer">WHY THIS BOUNDARY ↗</a>
+        </section>
 
         <main class="workspace">
           <section class="simulation" aria-label="3D humanoid simulation">
             <div id="viewport" class="viewport"></div>
             <div class="viewport__hud viewport__hud--top">
-              <div><small>ROBOT</small><strong>AION // H1-S</strong></div>
+              <div><small id="viewport-mode">LOCAL PREVIEW</small><strong>AION // H1-S</strong></div>
               <div class="model-tags"><span id="model-mass">— KG</span><span id="model-dof">— DOF</span><span id="model-actuators">— ACTUATORS</span></div>
             </div>
             <div class="viewport__hud viewport__hud--bottom">
-              <div class="field-position"><span>WORLD X <b id="coord-x">0.0</b></span><span>WORLD Y <b id="coord-y">0.0</b></span><span>W/A/S/D TO STEER</span></div>
+              <div class="field-position"><span>WORLD X <b id="coord-x">0.0</b></span><span>WORLD Y <b id="coord-y">0.0</b></span><span class="preview-only">W/A/S/D TO STEER</span><span class="isolated-only">RECORDED MUJOCO STATE / NO BROWSER SCORING</span></div>
               <div class="field-bearing"><i></i><span>NAV GRID / 5 M</span></div>
             </div>
             <div class="toolrail" aria-label="View controls">
@@ -405,9 +648,10 @@ export class App {
             <nav class="panel-tabs" aria-label="Inspector panels">
               <button class="panel-tab panel-tab--active" data-panel="lab">ROBOT LAB</button>
               <button class="panel-tab" data-panel="code">CONTROLLER</button>
+              <button class="panel-tab" data-panel="evidence">EVIDENCE</button>
             </nav>
             <div id="lab-panel" class="inspector-panel inspector-panel--active">
-              <div class="mode-note"><span>OPEN-FIELD TRAINER</span><p>Explore freely in X/Y with assisted balance, steering, collision obstacles, and live contact physics.</p></div>
+              <div class="mode-note"><span>LOCAL PREVIEW / NOT A SECURITY BOUNDARY</span><p>The Worker watchdog protects responsiveness. It does not isolate same-origin code or issue authoritative results.</p></div>
               <section class="control-section">
                 <div class="section-label"><span>ACTUATOR STRENGTH</span><output id="strength-value">100%</output></div>
                 <input id="strength" type="range" min="0.35" max="1.5" value="1" step="0.05" />
@@ -430,10 +674,27 @@ export class App {
               </section>
             </div>
             <div id="code-panel" class="inspector-panel inspector-panel--code">
-              <div class="editor-head"><span>control.js</span><small>100 HZ</small></div>
+              <div class="editor-head"><span>control.js</span><small>PREVIEW + EVALUATION INPUT</small></div>
               <textarea id="controller-source" class="code-editor" spellcheck="false" aria-label="JavaScript robot controller">${BASELINE_CONTROLLER}</textarea>
               <div id="console-output" class="console">Baseline controller ready.</div>
-              <div class="editor-actions"><button id="restore-button" class="button button--quiet">RESTORE</button><button id="compile-button" class="button button--accent">COMPILE</button></div>
+              <div class="evaluation-input"><label for="evaluation-seed">SEED</label><input id="evaluation-seed" type="number" min="0" max="4294967295" value="42" /><span>FIXED 2 MS / 8.00 S</span></div>
+              <div class="evaluation-input"><label for="evaluation-access-code">ACCESS</label><input id="evaluation-access-code" type="password" autocomplete="off" placeholder="demo code" /><span>ADMISSION ONLY / NOT A SOLARI KEY</span></div>
+              <div id="evaluation-status" class="console evaluation-status">Ready. Solari credentials remain on the server.</div>
+              <div class="editor-actions"><button id="restore-button" class="button button--quiet">RESTORE</button><button id="compile-button" class="button button--quiet">COMPILE PREVIEW</button><button id="isolated-button" class="button button--accent">RUN ISOLATED EVALUATION</button></div>
+            </div>
+            <div id="evidence-panel" class="inspector-panel inspector-panel--evidence">
+              <div class="evidence-intro"><span id="evidence-intro-title">NO VERIFIED ARTIFACT LOADED</span><p id="evidence-intro-detail">Authority exists only after the server returns a valid Solari run and this browser checks its hashes.</p></div>
+              <dl class="evidence-grid">
+                <div><dt>RUN ID</dt><dd id="evidence-run-id" data-testid="run-id">—</dd></div>
+                <div><dt>OUTCOME</dt><dd id="evidence-outcome" data-testid="outcome">—</dd></div>
+                <div><dt>CHECKPOINTS</dt><dd id="evidence-checkpoints" data-testid="checkpoints">—</dd></div>
+                <div><dt>SCORE</dt><dd id="evidence-score" data-testid="score">—</dd></div>
+                <div><dt>TIME</dt><dd id="evidence-time" data-testid="time">—</dd></div>
+                <div><dt>COLLISIONS</dt><dd id="evidence-collisions" data-testid="collisions">—</dd></div>
+                <div><dt>SEED</dt><dd id="evidence-seed" data-testid="seed">—</dd></div>
+              </dl>
+              <div class="hash-stack"><span>CONTROLLER SHA-256</span><code id="evidence-controller-hash" data-testid="controller-hash">—</code><span>TELEMETRY SHA-256</span><code id="evidence-telemetry-hash" data-testid="telemetry-hash">—</code><span>RESULT SHA-256</span><code id="evidence-result-hash" data-testid="result-hash">—</code></div>
+              <div class="replay-control"><div><span id="replay-state" data-testid="replay-state" data-state="empty">EMPTY</span><small>RECORDED STATE</small></div><input id="replay-scrubber" type="range" min="0" max="0" value="0" /><button id="replay-button" class="button button--accent">PLAY INTEGRITY-CHECKED REPLAY</button><button id="download-evidence" class="button button--quiet">DOWNLOAD ARTIFACT</button></div>
             </div>
           </aside>
         </main>
@@ -450,7 +711,7 @@ export class App {
           <div class="run-controls"><button id="power-button" class="button button--power">POWER ON</button><button id="reset-button" class="button button--quiet">RESET</button><button id="run-button" class="button button--accent">ENTER FIELD</button></div>
         </section>
       </div>
-      <div id="boot" class="boot"><div class="boot__brand">H1</div><p id="boot-label">Initializing robotics lab</p><div class="boot__track"><i id="boot-progress"></i></div><small>PHYSICS EXECUTES LOCALLY IN YOUR BROWSER</small></div>
+      <div id="boot" class="boot"><div class="boot__brand">SA</div><p id="boot-label">Initializing Solari Agent Arena</p><div class="boot__track"><i id="boot-progress"></i></div><small>LOCAL PREVIEW BOOTS FIRST / AUTHORITY STAYS SERVER-SIDE</small></div>
     `;
   }
 }

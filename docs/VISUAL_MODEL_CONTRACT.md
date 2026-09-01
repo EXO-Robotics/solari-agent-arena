@@ -90,7 +90,7 @@ The adapter tests these by applying body matrices; it does not retarget from Ble
 
 ## Authoring
 
-Use the official Blender Labs MCP against `127.0.0.1:9876` as documented in [BLENDER_MCP.md](BLENDER_MCP.md). Reproducible build: [`tools/blender/build_aion_visual.py`](../tools/blender/build_aion_visual.py).
+The checked-in GLB and manifest are inherited from Robot-3D-Sim and remain covered by these binding tests. Workstation-specific Blender/MCP generation tooling is intentionally omitted from this focused evaluation submission.
 
 First milestone geometry is a rigid-link original AION made of authored primitives (covers, cans, chassis, soles, visor, LEDs). It proves the contract. It is not the production sculpt.
 

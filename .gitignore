@@ -4,6 +4,9 @@ dist/
 coverage/
 *.log
 *.tsbuildinfo
+.env.local
+.env.*.local
+.vercel/
 *.blend1
 *.blend2
 __pycache__/

@@ -1,6 +1,7 @@
 {
-  "name": "humanoid-robot-games",
-  "version": "0.1.0",
+  "name": "solari-agent-arena",
+  "version": "1.0.0",
+  "description": "Preview AI robot controllers locally; evaluate them authoritatively in Solari Sandboxes.",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -8,12 +9,20 @@
     "dev": "vite",
     "open": "vite --open --host 127.0.0.1",
     "build": "tsc -b && vite build",
+    "bundle:runner": "node scripts/build-runner-bundle.mjs",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "evaluate:local": "node scripts/run-local-evaluator.mjs",
+    "qualify:local": "vitest run server/runner/arena-runner.test.ts",
+    "qualify:solari": "node scripts/qualify-solari.mjs",
+    "verify:solari-browser": "node scripts/verify-deployment.mjs"
   },
   "dependencies": {
     "@mujoco/mujoco": "3.12.0",
+    "@solarisdk/browser": "0.1.2",
+    "@solarisdk/sandbox": "0.1.2",
+    "quickjs-emscripten": "0.32.0",
     "three": "0.180.0"
   },
   "devDependencies": {

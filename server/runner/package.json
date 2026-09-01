@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@mujoco/mujoco": "3.12.0",
+    "quickjs-emscripten": "0.32.0"
+  }
+}

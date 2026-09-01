@@ -169,6 +169,17 @@ export class MujocoEngine {
     this.lastPosition = position;
   }
 
+  restoreState(qposValues: readonly number[], qvelValues: readonly number[]): void {
+    const qpos = this.data.qpos as Float64Array;
+    const qvel = this.data.qvel as Float64Array;
+    if (qposValues.length !== qpos.length || qvelValues.length !== qvel.length) {
+      throw new Error("Replay state does not match the frozen MuJoCo model.");
+    }
+    qpos.set(qposValues);
+    qvel.set(qvelValues);
+    this.module.mj_forward(this.model, this.data);
+  }
+
   sensors(): SensorFrame {
     const joints = {} as SensorFrame["joints"];
     for (const name of ACTUATOR_NAMES) joints[name] = this.jointValue(name);

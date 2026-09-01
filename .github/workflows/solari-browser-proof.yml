@@ -1,0 +1,42 @@
+name: Solari Browser proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_url:
+        description: Deployed app URL
+        required: true
+      evidence_file:
+        description: Checked-in artifact path
+        required: true
+        default: public/evidence/valid.solari-run.json
+      evidence_public_path:
+        description: Public path requested by the app
+        required: true
+        default: /evidence/valid.solari-run.json
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run verify:solari-browser
+        env:
+          SOLARI_API_KEY: ${{ secrets.SOLARI_API_KEY }}
+          DEPLOYMENT_URL: ${{ inputs.deployment_url }}
+          DEPLOYMENT_COMMIT: ${{ github.sha }}
+          EVIDENCE_FILE: ${{ inputs.evidence_file }}
+          EVIDENCE_PUBLIC_PATH: ${{ inputs.evidence_public_path }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: solari-browser-proof
+          path: evidence/e2e/
+          if-no-files-found: error
