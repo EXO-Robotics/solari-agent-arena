@@ -1,8 +1,8 @@
 {
   "artifact": "5e58cd178d5fc269b249b04968db3b79b64f788e1c42aa5a30257e36b05e4800",
   "transcript": "069e233483049d5c223b29b694d35b944dfc5b8b635c34c8ad079653ce5357fc",
-  "trialScreenshot": "79d69c46f013b96a143b31a6e49b19fae65560b9c2d49108ce2d99f6fb61df1c",
-  "artifactScreenshot": "39b6ea38b73d37fd1bfcbae5677d479b5c4a8ca2035ba0e9972a13219b2d8bc0",
-  "replayScreenshot": "c5957e72fdeb5e7dd0670f92d653bfc07e821ee94f7b8635114b8e68a971edd2",
-  "browserReplay": "f45c48cea77e37680148294c4a3c4edccf60b631bcb46d92fd9f08c244782d5b"
+  "trialScreenshot": "d8c6efa77b5319769f7bc92fdab421e25c4563d1cd59a6b8108d7d3972f40b9b",
+  "artifactScreenshot": "b50194ab194b8acf30c26bb070e597b26d0b47cffc22003b3fa8d1b4db654cb8",
+  "replayScreenshot": "ab252f489047ac9c54231f319894ac33f80deeecb1acfda40d67761b05b45bff",
+  "browserReplay": "815b3f6ca3a857611af797c81b062ea2134aa8ae72f82d16f3b2ddb903669752"
 }

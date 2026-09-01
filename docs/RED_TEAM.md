@@ -51,3 +51,18 @@ Fresh Grok session `01a05cfc-db86-73f2-a741-a22a37201ce1` reviewed the revised i
 - Overall score: **10/10**.
 
 Round 3 confirmed every Round 1 Medium is resolved and every Round 2 Low except the documented gait-duplication maintenance risk is resolved. It explicitly concluded that the remaining Low does not weaken the product or its claims.
+
+## Course-first UX release review — effectively 10/10
+
+Fresh Grok session `01a05d2d-901a-74c0-a620-6bb5f5b83a38` initially scored the candidate 7.5/10 and said `DO NOT RELEASE` for one High release-gate issue: the redesigned production build had not yet repeated its Browser and MCP E2E proofs. That finding was accepted.
+
+The candidate was deployed as commit `f68c11c928027d0eacd681fc2d774d2284128864`. Solari Browser then completed the official course and integrity-checked replay; the real stdio MCP bridge independently listed all seven tools, proved zero-cost observation/reset/action timing, and completed the canonical 21-action course. Both retained hash-bound evidence and passed.
+
+Fresh final Grok session `01a05d32-b99f-7ab2-a7da-17339d66b6e2` reported:
+
+- Critical: 0; High: 0; Medium: 0; Low: 0.
+- `RELEASE`, with high confidence.
+- Solari materially improves Robot-3D-Sim.
+- No concrete legitimate issue remains under the acceptance standard; submission quality is effectively **10/10**.
+
+The first reviewer pass also raised an MCP wait-on-hidden-control bug, reserved built-in course-ID replacement, missing prompt budgets, import-label escaping, clipboard fallback, overlay focus/inert handling, mobile authority labels, and misleading local-course status copy. Each legitimate finding was fixed and covered by targeted tests or browser inspection. A later broad headless retry exhausted its turn budget reading files and returned no verdict; it was not counted as approval.
