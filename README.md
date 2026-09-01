@@ -4,18 +4,20 @@
 
 [Live arena](https://solari-agent-arena.vercel.app/) · [Authoritative agent replay](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid-agent.solari-run.json) · [Frozen agent E2E proof](evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/assertions.json) · [Architecture](docs/ARCHITECTURE.md)
 
-Solari Agent Arena turns [Robot-3D-Sim](https://github.com/EXO-Robotics/Robot-3D-Sim) into an embodied-agent benchmark. A local model, Codex, or browser-driving agent controls the same MuJoCo/Three.js arena as the human reviewer. The primary path is a hosted five-tool MCP surface backed by a recording Solari Browser; WebMCP and the checked-in stdio bridge remain developer fallbacks.
+Solari Agent Arena turns [Robot-3D-Sim](https://github.com/EXO-Robotics/Robot-3D-Sim) into an embodied-agent benchmark. A local model, Codex, or browser-driving agent controls the same MuJoCo/Three.js arena as the human reviewer. The primary path is a zero-install HTTPS system prompt backed by a recording Solari Browser; remote MCP, WebMCP, and the checked-in stdio bridge remain optional developer surfaces.
 
 The browser trial is deliberately **non-authoritative**. The only authoritative score comes from replaying the validated action transcript with fixed-step MuJoCo inside a fresh **Solari Sandbox**, then binding the result, telemetry, replay state, course, seed, and transcript to SHA-256 evidence.
 
 ## The product in two clicks
 
-A pasted prompt cannot attach tools to an already-running agent task. Add `https://solari-agent-arena.vercel.app/mcp` as a remote MCP server once; this is the only connection step and requires no clone, local Node process, or personal Solari key.
+No repository clone, MCP installation, local Node process, browser attachment, or personal Solari key is required.
 
-1. Choose a built-in course and a **State** or **Vision** observation track, then click **Connect Agent**. The server launches one recording Solari Browser, loads the exact course and seed, verifies the manifest, and returns a short-lived opaque pairing ticket to the page.
-2. Click **Copy Mission**, paste it into the connected agent, and let it call `arena_connect → arena_observe / arena_act → arena_finish`.
+1. Choose a built-in course and a **State** or **Vision** observation track.
+2. Click **Create Run + Copy Prompt**, then paste that complete system prompt into any coding agent with shell or ordinary HTTPS access.
 
-The copied mission explicitly detects missing tools, describes all five operations, gives action limits and MuJoCo timing/equations, and requires inspection after every action. State exposes exact pose/heading/speed without an image. Vision exposes a cropped arena image plus phase/progress/budget, while withholding pose, yaw, velocity, pitch, and checkpoint coordinates. The simulation clock is frozen while the model looks or thinks.
+The server launches one recording Solari Browser, loads the exact course and seed, verifies the manifest, and gives the page a five-minute encrypted pairing capability. The prompt embeds that temporary capability plus one versioned HTTPS endpoint and the complete `connect → observe / act → finish` contract. State exposes exact pose/heading/speed without an image. Vision exposes a cropped arena PNG plus phase/progress/budget, while withholding pose, yaw, velocity, pitch, and checkpoint coordinates. The simulation clock is frozen while the model looks or thinks.
+
+A text-only chat with no shell, browser, HTTP, or tool capability cannot control an external benchmark; the prompt reports `ARENA_HTTP_UNAVAILABLE` instead of pretending otherwise.
 
 Remote practice is **recorded but non-authoritative**: the browser page still owns the simulated state. For an official course, `RUN ISOLATED SCORE` separately submits only the bounded transcript and seed to the existing token-gated Sandbox evaluator; the external agent itself is not claimed to run inside the Sandbox.
 
@@ -44,8 +46,8 @@ There is no Solari Desktop integration. This evaluator is headless and the exist
 flowchart LR
   UI[Course + track picker] -->|POST /api/arena-ticket| API[Vercel Node API<br/>credentials server-side]
   API -->|create + record| SB[Solari Browser]
-  UI -->|short-lived opaque ticket| A[Codex / local model / agent]
-  A -->|hosted /mcp<br/>5 narrow tools| API
+  UI -->|self-contained system prompt<br/>short-lived opaque ticket| A[Codex / local model / agent]
+  A -->|POST /api/arena-command<br/>5 strict operations| API
   API -->|CDP reconnect per call| SB
   SB --> BT[Browser Agent Tool Trial]
   BT -->|observe / expected bounded act| BM[Browser MuJoCo + Three.js]
@@ -64,11 +66,25 @@ flowchart LR
   VR[Solari Browser release verifier] -->|DOM + hashes + replay completion| RP
 ```
 
-Vercel does not hold Arena state in an MCP object or module global. Each tool call carries an encrypted, short-lived `arenaSession`; the provider session ID and raw CDP endpoint remain inside that ciphertext and are never returned separately. The transport is stateless and reconnects with Puppeteer, then disconnects without closing the Browser. The trust claim remains narrow: **the external model and remote browser trial are outside the authoritative boundary**.
+Vercel does not hold Arena state in an API object or module global. Each HTTP or MCP call carries an encrypted, short-lived `arenaSession`; the provider session ID and raw CDP endpoint remain inside that ciphertext and are never returned separately. The transport is stateless and reconnects with Puppeteer, then disconnects without closing the Browser. The trust claim remains narrow: **the external model and remote browser trial are outside the authoritative boundary**.
 
 ## Agent tool surfaces
 
-### Hosted remote MCP: primary practice path
+### Zero-install HTTPS: primary practice path
+
+The copied system prompt posts one strict JSON object at a time to `https://solari-agent-arena.vercel.app/api/arena-command`:
+
+| Operation | Effect |
+|---|---|
+| `connect(ticket)` | Verify the short-lived course/seed/track-bound ticket and return an opaque `arenaSession` plus the first observation. |
+| `observe(arenaSession)` | Return the State or Vision observation without advancing simulated time. |
+| `act(arenaSession, expectedSequence, drive, turn, durationMs)` | Apply one sequence-checked bounded action and return its resulting observation. |
+| `finish(arenaSession)` | Release Browser and return transcript plus `solari.arena.remote-practice-run.v1`. |
+| `disconnect(arenaSession)` | Release without issuing a practice result. |
+
+The endpoint accepts ordinary JSON over HTTPS, so a coding agent can use its existing shell or HTTP capability. It does not install anything in the model host. The ticket and session are temporary encrypted bearer capabilities, not Solari credentials, and the prompt tells the agent not to repeat them in its final response.
+
+### Hosted remote MCP: optional compatibility path
 
 Add `https://solari-agent-arena.vercel.app/mcp` to an MCP-capable host. The server is stateless and exposes exactly five tools:
 
@@ -80,7 +96,7 @@ Add `https://solari-agent-arena.vercel.app/mcp` to an MCP-capable host. The serv
 | `arena_finish(arenaSession)` | Release Browser and return transcript plus `solari.arena.remote-practice-run.v1`. |
 | `arena_disconnect(arenaSession)` | Release without issuing a practice result. |
 
-The pairing token is replayable until its five-minute expiry in this focused prototype; it reattaches to the same Browser rather than creating another. The session capability lasts at most twenty minutes or the shorter Solari provider deadline. Abandoned sessions are bounded by the provider deadline. Strict one-time redemption, durable active-session leases, and public paid-abuse protection require a shared atomic store and rate limiter; therefore `SOLARI_REMOTE_ENABLED` defaults to `false` and must remain false on unattended public deployments until those controls exist. This limitation is explicit rather than disguised as “single use.”
+The same encrypted capability and Browser runtime back HTTPS and MCP. The pairing token is replayable until its five-minute expiry in this focused prototype; it reattaches to the same Browser rather than creating another. The session capability lasts at most twenty minutes or the shorter Solari provider deadline. Abandoned sessions are bounded by the provider deadline. Strict one-time redemption, durable active-session leases, and paid-abuse protection require a shared atomic store or platform rate limiter; `SOLARI_REMOTE_ENABLED` therefore remains an explicit release gate rather than a hidden “single use” claim.
 
 Remote practice can never call the authoritative evaluator or emit `solari.arena.agent-run.v1`. Its receipt says `authoritative:false`, hashes the transcript/screenshot/recording when obtained, hashes rather than reveals the Solari session ID, and records only that release was accepted.
 
@@ -115,9 +131,9 @@ Built-in course selection travels as an explicit contract: copied prompt → `ar
 
 ### Safari or ordinary browser automation
 
-The Agent Tools panel exposes accessible buttons and status fields. Browser automation may also call the same frozen API at `window.solariAgentArena`. Safari does not provide Codex site tools; a local model needs computer-use/browser automation or the standard MCP bridge.
+Safari is the zero-install launchpad: it selects the course and track, creates the recorded Browser, and copies the HTTPS system prompt. The external agent does not need access to the Safari tab. Browser automation may still call the same frozen page API at `window.solariAgentArena` for local testing.
 
-The in-app **Tools & physics** drawer leads with the hosted five-tool contract and exact physics. Course JSON import and the seven-tool stdio server are kept as local creator/developer fallbacks. The manual numeric action console stays collapsed unless a developer or verifier opens it.
+The in-app **Tools & physics** drawer leads with the zero-install HTTPS loop and exact physics. Remote MCP, course JSON import, and the seven-tool stdio server are optional creator/developer surfaces. The manual numeric action console stays collapsed unless a developer or verifier opens it.
 
 ## Tool and transcript contract
 

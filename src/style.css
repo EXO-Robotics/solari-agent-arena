@@ -398,14 +398,14 @@ input[type="range"]::-webkit-slider-thumb { appearance: none; width: 12px; heigh
 .start-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 36px rgba(170,255,30,.15); }
 .start-primary span { font-size: 18px; }
 .start-primary:disabled { cursor: not-allowed; opacity: .28; transform: none; box-shadow: none; }
-.start-connect-hidden { display: none; }
 .import-course { height: 58px; display: grid; place-items: center; border: 1px solid var(--line); color: #b6beb7; font: 700 8px "SFMono-Regular", Consolas, monospace; letter-spacing: .1em; cursor: pointer; }
 .import-course:hover { border-color: #d9e0da; }
 .import-course input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .remote-connect-status { grid-column: 1; margin: 9px 0 0; min-height: 15px; color: #89938b; font-size: 9px; line-height: 1.5; }
 .remote-connect-status--paused { color: #ffb36b; }
-.connection-setup { grid-column: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--line); color: #727b74; font: 700 7px "SFMono-Regular", Consolas, monospace; letter-spacing: .11em; }
-.connection-setup button { border: 0; border-bottom: 1px solid rgba(170,255,30,.35); background: transparent; color: var(--signal); padding: 4px 0; font: 750 7px "SFMono-Regular", Consolas, monospace; letter-spacing: .1em; cursor: pointer; }
+.zero-setup-note { grid-column: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--line); font: 700 7px "SFMono-Regular", Consolas, monospace; letter-spacing: .1em; }
+.zero-setup-note b { color: var(--signal); }
+.zero-setup-note span { color: #727b74; text-align: right; }
 .course-import-status { grid-column: 1; margin: 3px 0 0; color: #687169; font-size: 9px; line-height: 1.5; }
 .course-import-status a { color: #aab3ac; text-underline-offset: 3px; }
 .prompt-fallback { display: none; grid-column: 1; width: 100%; min-height: 132px; margin-top: 12px; resize: vertical; border: 1px solid #ff8a82; background: #080a09; color: #edf2ee; padding: 12px; font: 9px/1.5 "SFMono-Regular", Consolas, monospace; }

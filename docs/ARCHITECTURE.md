@@ -5,24 +5,26 @@
 ```mermaid
 flowchart TB
   subgraph Agent[External agent / not isolated]
-    C[Codex / MCP-capable agent]
+    C[Codex / coding agent<br/>ordinary HTTPS]
     L[Local developer MCP host]
     S[Safari computer use]
   end
   subgraph Browser[Non-authoritative browser trial]
     W[WebMCP site tools]
-    M[Hosted remote MCP<br/>encrypted per-call capability]
+    H[Zero-install HTTPS prompt<br/>encrypted per-call capability]
+    M[Optional remote MCP<br/>same capability]
     LM[Local stdio MCP bridge]
     U[Accessible UI / window API]
     O[Reset / observe / bounded act]
     P[Deterministic gait + browser MuJoCo]
     T[Versioned action transcript]
     W --> O
+    H --> O
     M --> O
     U --> O
     O --> P --> T
   end
-  C --> M
+  C --> H
   C --> W
   L --> LM
   M -->|stateless CDP reconnect| O
@@ -53,7 +55,7 @@ The external agent may be local, remote, benign, broken, or adversarial. This su
 | Path | Purpose | Authority |
 |---|---|---|
 | Local Preview | Fast generated-controller iteration through the original Worker/watchdog | Non-isolated and non-authoritative |
-| Hosted Agent Practice | Five remote MCP tools controlling one recording Solari Browser through a short-lived encrypted capability | Provider-isolated from the user's machine, but non-authoritative because the page owns simulation state |
+| Hosted Agent Practice | One copied system prompt controlling a recording Solari Browser through strict HTTPS operations and a short-lived encrypted capability; MCP remains optional | Provider-isolated from the user's machine, but non-authoritative because the page owns simulation state |
 | Agent Tool Trial | Visual observe/act loop, zero-cost thinking, exact transcript capture | Non-authoritative; page/client can be manipulated |
 | Agent Isolated Score | Validate and replay the action transcript in fixed-step MuJoCo in a fresh Sandbox | Authoritative for transcript replay and scoring only |
 | Controller Isolated Evaluation | Run submitted controller source in QuickJS plus MuJoCo in a fresh Sandbox | Authoritative for the controller-source run |
@@ -71,7 +73,7 @@ The browser course library has three states:
 
 Local imports are checkpoint-route manifests, not arbitrary MuJoCo or JavaScript uploads. They are size/range/count validated in the browser and never reach the authoritative evaluator. A future community registry needs immutable course IDs/versions, moderation, bounded geometry, server-side validation, and a course hash in the authority bundle before uploaded level designs can produce comparable scores.
 
-For the standard MCP path, a built-in selection is explicit and fail closed: the copied mission passes an allow-listed `courseId` to `arena_open`, the bridge creates a normalized same-origin `?agent=1&course=...` URL, the page selects that built-in before MuJoCo loads, and the agent must match the first observation's `courseId` before acting. Local imports are not silently substituted because their manifests exist only in the importing tab.
+For the primary HTTPS path, Safari passes the allow-listed `courseId`, seed, and track to the server before it copies anything. The server creates a normalized same-origin `?agent=1&course=...` URL, verifies the loaded manifest and initial observation, and seals that binding into the prompt's ticket. The agent must match the first observation before acting. Local imports are not silently substituted because their manifests exist only in the importing tab. The optional stdio MCP path keeps its explicit `arena_open.courseId` binding.
 
 ## Boundary inventory
 
@@ -79,7 +81,7 @@ For the standard MCP path, a built-in selection is explicit and fail closed: the
 |---|---|---|
 | Browser Worker | UI responsiveness and termination of a slow controller step | Origin isolation, compile timeout, authority, deterministic scheduling |
 | WebMCP / window API / accessible buttons | A narrow shared robot-control interface | Trustworthiness of the agent or browser state |
-| Hosted MCP capability | Course/seed/track binding; hides Solari session ID/CDP endpoint; expires quickly; transport remains stateless | Strict single use, durable revocation, public rate limiting, or scoring authority |
+| Hosted HTTP/MCP capability | Course/seed/track binding; hides Solari session ID/CDP endpoint; expires quickly; transport remains stateless | Strict single use, durable revocation, public rate limiting, or scoring authority |
 | Agent transcript validation | Canonical sequence, bounded finite actions, course/seed/time/action limits | That the browser trial was honest or that a particular model produced it |
 | Vercel API | Server-only credential handling, admission, request bounds, artifact finalization | Untrusted-code isolation by itself |
 | Solari Sandbox | Fresh microVM outer boundary and SDK-controlled destruction | Publicly documented egress enforcement or remote attestation |
