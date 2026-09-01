@@ -21,33 +21,40 @@ await mkdir(evidenceDir, { recursive: true });
 const client = new Solari({ apiKey: process.env.SOLARI_API_KEY });
 const browser = await client.launch({ recording: true });
 const sessionId = browser.id; const startedAt = new Date().toISOString(); let replayBytes;
-const observations = { siteTools: [], zeroCostObservation: false, browserTrial: {}, artifact: {}, replayState: "" };
+const observations = { agentToolApiVersion: "", zeroCostObservation: false, browserTrial: {}, artifact: {}, replayState: "" };
 
 try {
   const page = await browser.newPage();
-  await page.addInitScript(() => {
-    const tools = new Map();
-    Object.defineProperty(window, "__arenaSiteTools", { value: tools });
-    Object.defineProperty(document, "modelContext", { value: { registerTool: async (tool) => { tools.set(tool.name, tool); } } });
-  });
   const trialUrl = new URL(deploymentUrl); trialUrl.searchParams.set("agent", "1");
   await page.goto(trialUrl.href, { waitUntil: "domcontentloaded", timeout: 60_000 });
-  await page.waitForFunction(() => window.__arenaSiteTools?.size === 4, null, { timeout: 60_000 });
-  observations.siteTools = await page.evaluate(() => Array.from(window.__arenaSiteTools.keys()).sort());
-  const expectedTools = ["arena_act", "arena_observe", "arena_reset", "arena_transcript"];
-  if (JSON.stringify(observations.siteTools) !== JSON.stringify(expectedTools)) throw new Error(`Site tool registration mismatch: ${observations.siteTools.join(",")}`);
-  const invoke = (name, input = {}) => page.evaluate(({ toolName, toolInput }) => window.__arenaSiteTools.get(toolName).execute(toolInput), { toolName: name, toolInput: input });
-  await invoke("arena_reset", { seed: transcript.seed });
-  const before = await invoke("arena_observe");
+  await page.getByTestId("agent-phase").waitFor({ timeout: 60_000 });
+  observations.agentToolApiVersion = await page.getByTestId("agent-interface").getAttribute("data-api-version");
+  if (observations.agentToolApiVersion !== "solari.arena.agent-tools.v1") throw new Error("Agent tool API version mismatch.");
+  await page.locator("#agent-seed").fill(String(transcript.seed));
+  await page.getByRole("button", { name: "RESET TRIAL" }).click();
+  const before = await page.getByTestId("agent-time").innerText();
   await new Promise((resolve) => setTimeout(resolve, 750));
-  const after = await invoke("arena_observe");
-  observations.zeroCostObservation = before.simulatedTimeSeconds === 0 && after.simulatedTimeSeconds === 0;
+  const after = await page.getByTestId("agent-time").innerText();
+  observations.zeroCostObservation = before.trim() === "0.00 S" && after.trim() === "0.00 S";
   if (!observations.zeroCostObservation) throw new Error("Observation/thinking advanced simulated time.");
-  let finalObservation = after;
-  for (const action of transcript.actions) finalObservation = await invoke("arena_act", { drive: action.drive, turn: action.turn, durationMs: action.durationMs });
-  const observedTranscript = await invoke("arena_transcript");
+  const execute = page.getByTestId("agent-execute");
+  for (const action of transcript.actions) {
+    await page.locator("#agent-drive").fill(String(action.drive));
+    await page.locator("#agent-turn").fill(String(action.turn));
+    await page.locator("#agent-duration").fill(String(action.durationMs));
+    await execute.click();
+    await page.waitForFunction((receipt) => document.querySelector('[data-testid="agent-execute"]')?.getAttribute("data-receipt") === receipt, String(action.sequence), { timeout: 10_000 });
+  }
+  const observedTranscript = JSON.parse(await page.getByTestId("agent-transcript-json").inputValue());
   if (canonicalJson(observedTranscript) !== canonicalJson(transcript)) throw new Error("Rendered browser trial transcript differs from the fixture.");
-  if (finalObservation.phase !== "complete" || finalObservation.checkpoints.reached !== 5 || finalObservation.collisions !== 0) {
+  const finalObservation = {
+    phase: (await page.getByTestId("agent-phase").innerText()).trim().toLowerCase(),
+    checkpoints: (await page.getByTestId("agent-checkpoints").innerText()).trim(),
+    collisions: Number((await page.getByTestId("agent-collisions").innerText()).trim()),
+    actions: (await page.getByTestId("agent-actions").innerText()).trim(),
+    simulatedTime: (await page.getByTestId("agent-time").innerText()).trim(),
+  };
+  if (finalObservation.phase !== "complete" || finalObservation.checkpoints !== "5 / 5" || finalObservation.collisions !== 0) {
     throw new Error(`Browser trial did not complete cleanly: ${JSON.stringify(finalObservation)}`);
   }
   observations.browserTrial = finalObservation;

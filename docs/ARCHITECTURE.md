@@ -65,7 +65,7 @@ The external agent may be local, remote, benign, broken, or adversarial. This su
 | Solari Sandbox | Fresh microVM outer boundary and SDK-controlled destruction | Publicly documented egress enforcement or remote attestation |
 | QuickJS in controller-source runs | Controller lacks Node/browser APIs; CPU/memory/stack bounds | Used by agent transcript scoring; hardware isolation from the service host |
 | Artifact hashes | Mutation detection between issuance and replay | Issuer identity without a signing/attestation system |
-| Solari Browser | Deployed tool behavior, DOM evidence, hashes, and replay completion match the artifact | Recomputing MuJoCo physics or isolating the external agent |
+| Solari Browser | Deployed page-tool behavior, DOM evidence, hashes, and replay completion match the artifact | Recomputing MuJoCo physics, Codex safety-review UI, or isolating the external agent |
 
 ## Determinism rule
 

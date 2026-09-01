@@ -228,6 +228,7 @@ export class App {
     this.requireElement("#agent-reset").addEventListener("click", () => this.resetAgentTrial(Number(this.requireInput("#agent-seed").value)));
     this.requireElement("#agent-copy").addEventListener("click", () => void this.copyAgentTranscript());
     this.requireElement("#agent-isolated").addEventListener("click", () => void this.runIsolatedAgentEvaluation());
+    this.requireElement("#agent-execute").addEventListener("click", () => void this.executeAgentFormAction());
     this.requireElement("#restore-button").addEventListener("click", () => {
       (this.requireElement("#controller-source") as HTMLTextAreaElement).value = BASELINE_CONTROLLER;
       this.controller.compile(BASELINE_CONTROLLER);
@@ -764,6 +765,7 @@ export class App {
     this.scene?.setAgentCourseProgress(this.mode === "agent", observation.checkpoints.reached);
     const recent = this.agentTrial.transcript().actions.slice(-5).map((action) => `#${action.sequence} d=${action.drive.toFixed(2)} t=${action.turn.toFixed(2)} ${action.durationMs}ms`);
     this.requireElement("#agent-transcript").textContent = recent.length ? recent.join("\n") : "No actions recorded.";
+    this.requireInput("#agent-transcript-json").value = JSON.stringify(this.agentTrial.transcript());
   }
 
   private showAgentStatus(message: string, error: boolean): void {
@@ -776,6 +778,22 @@ export class App {
     const transcript: AgentTranscript = this.agentTrial.transcript();
     await navigator.clipboard.writeText(JSON.stringify(transcript, null, 2));
     this.showAgentStatus("Transcript copied. Submit it for isolated deterministic scoring.", false);
+  }
+
+  private async executeAgentFormAction(): Promise<void> {
+    const button = this.requireElement("#agent-execute") as HTMLButtonElement;
+    button.disabled = true;
+    try {
+      const observation = await this.actAgent({
+        drive: Number(this.requireInput("#agent-drive").value),
+        turn: Number(this.requireInput("#agent-turn").value),
+        durationMs: Number(this.requireInput("#agent-duration").value),
+      });
+      button.dataset.receipt = String(observation.actionsUsed - 1);
+      this.showAgentStatus(`ACT COMPLETE · ${observation.actionsUsed} actions · ${observation.simulatedTimeSeconds.toFixed(3)} simulated seconds`, false);
+    } catch (error) {
+      this.showAgentStatus(String(error), true);
+    } finally { button.disabled = false; }
   }
 
   private async runIsolatedAgentEvaluation(): Promise<void> {
@@ -967,9 +985,16 @@ export class App {
                 <button data-agent-preset="reverse">REVERSE</button>
                 <button data-agent-preset="wait">WAIT</button>
               </div>
+              <div class="agent-command-form" aria-label="Exact bounded agent action">
+                <label>DRIVE<input id="agent-drive" type="number" min="-1.6" max="1.6" step="0.05" value="1.2" /></label>
+                <label>TURN<input id="agent-turn" type="number" min="-1.4" max="1.4" step="0.05" value="0" /></label>
+                <label>MS<input id="agent-duration" type="number" min="100" max="2000" step="50" value="800" /></label>
+                <button id="agent-execute" data-testid="agent-execute" data-receipt="-1">EXECUTE ACTION</button>
+              </div>
               <pre id="agent-transcript" class="agent-transcript">No actions recorded.</pre>
+              <textarea id="agent-transcript-json" class="agent-transcript-json" data-testid="agent-transcript-json" tabindex="-1" aria-hidden="true"></textarea>
               <div class="evaluation-input"><label for="agent-seed">SEED</label><input id="agent-seed" type="number" min="0" max="4294967295" value="42" /><span>60 S / 120 ACTIONS</span></div>
-              <div id="agent-interface" class="agent-interface" data-testid="agent-interface">INITIALIZING TOOL INTERFACES…</div>
+              <div id="agent-interface" class="agent-interface" data-testid="agent-interface" data-api-version="${AGENT_TOOL_VERSION}">INITIALIZING TOOL INTERFACES…</div>
               <div class="evaluation-input"><label for="agent-access-code">ACCESS</label><input id="agent-access-code" type="password" autocomplete="off" placeholder="demo code" /><span>SERVER ADMISSION ONLY</span></div>
               <div id="agent-status" class="console evaluation-status" data-testid="agent-status">Open with ?agent=1 or call window.solariAgentArena.</div>
               <div class="agent-footer"><button id="agent-reset" class="button button--quiet">RESET TRIAL</button><button id="agent-copy" class="button button--quiet">COPY TRANSCRIPT</button><button id="agent-isolated" class="button button--accent">RUN ISOLATED SCORE</button></div>

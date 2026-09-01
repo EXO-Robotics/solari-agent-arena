@@ -24,7 +24,7 @@ Robot-3D-Sim originally runs generated controller code in a same-origin Web Work
 Solari adds two necessary boundaries:
 
 - **Solari Sandbox** is the outer microVM boundary for authoritative deterministic simulation. Controller-source qualification still nests submitted JavaScript in QuickJS; agent benchmarking accepts no model code at all, only a schema-validated bounded action transcript.
-- **Solari Browser** performs release verification. It drives the actual site tools, proves observation consumes zero simulated time, completes the browser course, compares the transcript to the authoritative artifact, verifies every rendered result field and hash, completes replay, and retains screenshots plus the rrweb session recording.
+- **Solari Browser** performs release verification. It drives the same public page callbacks used by the site tools, proves observation consumes zero simulated time, completes the browser course, compares the transcript to the authoritative artifact, verifies every rendered result field and hash, completes replay, and retains screenshots plus the rrweb session recording. A separate contract test verifies the WebMCP registration surface and delegation.
 
 There is no Solari Desktop integration. This evaluator is headless and the existing WebGL arena is already the correct visual surface.
 
