@@ -67,3 +67,20 @@ Rejected or retained Low findings:
 - one in-flight evaluation per warm instance is an explicitly documented abuse backstop, not a global quota; public evaluation remains disabled by default.
 
 The accepted UI fixes were redeployed and the refreshed Browser proof passed the original field checks plus explicit global `READY` and `COMPLETE` assertions. Final independent signoff follows in Pass 4.
+
+## Pass 4 — final signoff
+
+Fresh Grok session `01a05ca0-2506-7483-b871-307618583dce` independently inspected the corrected code, exact deployed-commit binding, Sandbox evidence, refreshed Browser assertions, screenshots, hashes, recording, and documentation. Verdict:
+
+- **10 / 10**; submission quality effectively 10/10;
+- no legitimate Critical, High, or Medium findings;
+- high confidence in the architecture and honesty of its proof boundaries;
+- Solari materially improves Robot-3D-Sim;
+- no Low issue blocks signoff.
+
+Remaining documented Lows only:
+
+- canonical JSON is independently implemented in the trusted runner, server, and browser; shared-order tests, server re-validation, and the live Browser hash check constrain drift;
+- the in-flight paid-run lock is per warm Vercel instance rather than a global quota; public evaluation is disabled by default and also requires a separate admission token.
+
+No reviewer feedback was blindly applied. The ambient-locale concern was rejected because both compared paths explicitly request `en-US`; the deployed-code/proof-commit difference was accepted as the normal deploy-then-retain-proof chain and is labeled in every proof surface.
