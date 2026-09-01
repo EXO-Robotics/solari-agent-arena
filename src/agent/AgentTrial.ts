@@ -11,6 +11,7 @@ import {
 } from "./contract";
 
 export class AgentTrial {
+  private course = AGENT_COURSE;
   private phase: AgentTrialPhase = "idle";
   private seed = 0;
   private startedAt = 0;
@@ -19,6 +20,10 @@ export class AgentTrial {
   private collisionActive = false;
   private commandedMs = 0;
   private readonly actions: AgentAction[] = [];
+
+  configureCourse(course: typeof AGENT_COURSE): void {
+    this.course = course;
+  }
 
   reset(seed: number, simulationTime: number): void {
     if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) throw new Error("seed must be a uint32 integer.");
@@ -34,9 +39,9 @@ export class AgentTrial {
 
   recordAction(input: { drive: number; turn: number; durationMs: number }): AgentAction {
     if (this.phase !== "running") throw new Error(`Agent trial is ${this.phase}; reset before acting.`);
-    validateAgentAction(input);
-    if (this.actions.length >= AGENT_COURSE.maxActions) throw new Error("Agent action budget exhausted.");
-    if (this.commandedMs + input.durationMs > AGENT_COURSE.maxSeconds * 1_000) throw new Error("Agent simulated-time budget exhausted.");
+    validateAgentAction(input, this.course);
+    if (this.actions.length >= this.course.maxActions) throw new Error("Agent action budget exhausted.");
+    if (this.commandedMs + input.durationMs > this.course.maxSeconds * 1_000) throw new Error("Agent simulated-time budget exhausted.");
     const action = Object.freeze({ sequence: this.actions.length, ...input });
     this.actions.push(action);
     this.commandedMs += input.durationMs;
@@ -47,17 +52,17 @@ export class AgentTrial {
     if (this.phase !== "running") return;
     if (worldCollision && !this.collisionActive) this.collisions += 1;
     this.collisionActive = worldCollision;
-    const next = AGENT_COURSE.checkpoints[this.checkpointIndex];
+    const next = this.course.checkpoints[this.checkpointIndex];
     if (next && Math.hypot(frame.position - next.x, frame.lateral - next.y) <= next.radius) this.checkpointIndex += 1;
-    if (this.checkpointIndex >= AGENT_COURSE.checkpoints.length) this.phase = "complete";
+    if (this.checkpointIndex >= this.course.checkpoints.length) this.phase = "complete";
     else if (fallen) this.phase = "fallen";
-    else if (frame.time - this.startedAt >= AGENT_COURSE.maxSeconds) this.phase = "time_limit";
+    else if (frame.time - this.startedAt >= this.course.maxSeconds) this.phase = "time_limit";
   }
 
   observation(frame: SensorFrame): AgentObservation {
     return {
       schemaVersion: AGENT_TOOL_VERSION,
-      courseId: AGENT_COURSE.courseId,
+      courseId: this.course.courseId,
       phase: this.phase,
       simulatedTimeSeconds: Math.max(0, frame.time - this.startedAt),
       position: { x: frame.position, y: frame.lateral, height: frame.height },
@@ -66,19 +71,19 @@ export class AgentTrial {
       bodyPitchRadians: frame.imu.pitch,
       checkpoints: {
         reached: this.checkpointIndex,
-        total: AGENT_COURSE.checkpoints.length,
-        nextId: AGENT_COURSE.checkpoints[this.checkpointIndex]?.id ?? null,
+        total: this.course.checkpoints.length,
+        nextId: this.course.checkpoints[this.checkpointIndex]?.id ?? null,
       },
       collisions: this.collisions,
       actionsUsed: this.actions.length,
-      actionBudget: AGENT_COURSE.maxActions,
+      actionBudget: this.course.maxActions,
     };
   }
 
   transcript(): AgentTranscript {
     return {
       schemaVersion: AGENT_TRANSCRIPT_VERSION,
-      courseId: AGENT_COURSE.courseId,
+      courseId: this.course.courseId,
       seed: this.seed,
       actions: this.actions.map((action) => ({ ...action })),
     };

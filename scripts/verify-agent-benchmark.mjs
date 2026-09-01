@@ -28,6 +28,7 @@ try {
   const trialUrl = new URL(deploymentUrl); trialUrl.searchParams.set("agent", "1");
   await page.goto(trialUrl.href, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.getByTestId("agent-phase").waitFor({ timeout: 60_000 });
+  await page.locator("#agent-manual-tools summary").click();
   observations.agentToolApiVersion = await page.getByTestId("agent-interface").getAttribute("data-api-version");
   if (observations.agentToolApiVersion !== "solari.arena.agent-tools.v1") throw new Error("Agent tool API version mismatch.");
   await page.locator("#agent-seed").fill(String(transcript.seed));

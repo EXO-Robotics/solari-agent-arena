@@ -54,6 +54,18 @@ The external agent may be local, remote, benign, broken, or adversarial. This su
 | Controller Isolated Evaluation | Run submitted controller source in QuickJS plus MuJoCo in a fresh Sandbox | Authoritative for the controller-source run |
 | Browser Replay | Render integrity-checked recorded state | Presentation of authority, not new scoring |
 
+## Course authority
+
+The browser course library has three states:
+
+| Course source | Browser tools | Solari score |
+|---|---|---|
+| Frozen official registry | Enabled | Eligible after transcript validation and Sandbox replay |
+| Built-in practice route | Enabled | Disabled |
+| Locally imported `solari.arena.course.v1` route | Enabled on the fixed arena | Disabled |
+
+Local imports are checkpoint-route manifests, not arbitrary MuJoCo or JavaScript uploads. They are size/range/count validated in the browser and never reach the authoritative evaluator. A future community registry needs immutable course IDs/versions, moderation, bounded geometry, server-side validation, and a course hash in the authority bundle before uploaded level designs can produce comparable scores.
+
 ## Boundary inventory
 
 | Boundary | What it guarantees | What it does not guarantee |

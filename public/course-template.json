@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "solari.arena.course.v1",
+  "courseId": "my-local-route-v1",
+  "title": "My Local Route",
+  "summary": "A checkpoint route across the fixed Solari arena.",
+  "maxSeconds": 45,
+  "maxActions": 90,
+  "maxActionDurationMs": 2000,
+  "maxDrive": 1.6,
+  "maxTurn": 1.4,
+  "checkpoints": [
+    { "id": "gate-one", "x": 3, "y": 0, "radius": 1.25 },
+    { "id": "gate-two", "x": 7, "y": 2, "radius": 1.25 },
+    { "id": "finish", "x": 12, "y": -2, "radius": 1.5 }
+  ]
+}

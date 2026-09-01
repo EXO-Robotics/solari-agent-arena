@@ -10,9 +10,11 @@ import { validateControllerSource } from "./control/validation";
 import type { AuthoritativeRun } from "./evidence/contract";
 import { verifyArtifactIntegrity } from "./evidence/verify";
 import { AgentTrial } from "./agent/AgentTrial";
-import { AGENT_COURSE, AGENT_TOOL_VERSION, type AgentObservation, type AgentTranscript } from "./agent/contract";
+import { AGENT_TOOL_VERSION, type AgentObservation, type AgentTranscript } from "./agent/contract";
 import { registerAgentSiteTools } from "./agent/webmcp";
 import { agentGaitTargets } from "./agent/gait";
+import { COURSE_CATALOG, parseImportedCourse, type CourseListing } from "./agent/courseCatalog";
+import { buildAgentPrompt } from "./agent/prompt";
 
 const CONTROL_DT = 0.01;
 const TELEMETRY_DT = 0.04;
@@ -40,6 +42,8 @@ export class App {
   private replayPlaying = false;
   private replayElapsed = 0;
   private readonly agentTrial = new AgentTrial();
+  private readonly courseListings: CourseListing[] = [...COURSE_CATALOG];
+  private activeCourse: CourseListing = this.courseListings[0]!;
   private agentCommand: {
     drive: number;
     turn: number;
@@ -49,6 +53,7 @@ export class App {
   } | null = null;
 
   constructor(private readonly root: HTMLElement) {
+    this.agentTrial.configureCourse(this.activeCourse.course);
     this.root.innerHTML = this.template();
     this.bindStaticUi();
   }
@@ -59,7 +64,7 @@ export class App {
       this.engine = await MujocoEngine.create(PHYSICS_MODEL_XML);
       this.setBoot("Binding visual model", 62);
       this.scene = await RobotScene.create(this.requireElement("#viewport"), this.engine);
-      this.scene.configureAgentCourse(AGENT_COURSE.checkpoints);
+      this.scene.configureAgentCourse(this.activeCourse.course.checkpoints);
       this.controller.compile(BASELINE_CONTROLLER);
       this.session.ready();
       this.setBoot("Sensors online", 100);
@@ -68,7 +73,11 @@ export class App {
       this.previousFrameTime = performance.now();
       await this.loadEvidenceFromUrl();
       this.installAgentToolApi();
-      if (new URLSearchParams(location.search).get("agent") === "1") this.setMode("agent");
+      const parameters = new URLSearchParams(location.search);
+      if (!parameters.has("evidence")) {
+        this.setMode("agent");
+        if (parameters.get("agent") !== "1") this.openStartScreen();
+      }
       await this.installAgentSiteTools();
       this.animationId = requestAnimationFrame((time) => this.animate(time));
     } catch (error) {
@@ -155,6 +164,20 @@ export class App {
   }
 
   private bindStaticUi(): void {
+    this.requireElement("#course-list").addEventListener("click", (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-course-index]");
+      if (button) this.selectCourse(Number(button.dataset.courseIndex));
+    });
+    this.requireElement("#start-copy").addEventListener("click", () => void this.copyMissionPrompt(true));
+    this.requireElement("#mission-copy").addEventListener("click", () => void this.copyMissionPrompt(false));
+    this.requireElement("#mission-courses").addEventListener("click", () => this.openStartScreen());
+    this.requireElement("#open-courses").addEventListener("click", () => this.openStartScreen());
+    this.requireElement("#close-courses").addEventListener("click", () => this.closeStartScreen());
+    this.requireElement("#guide-open").addEventListener("click", () => this.setGuideOpen(true));
+    this.requireElement("#guide-close").addEventListener("click", () => this.setGuideOpen(false));
+    this.requireElement("#guide-backdrop").addEventListener("click", () => this.setGuideOpen(false));
+    this.requireElement("#copy-mcp-command").addEventListener("click", () => void this.copyMcpCommand());
+    this.requireInput("#course-import").addEventListener("change", (event) => void this.importCourse((event.currentTarget as HTMLInputElement).files?.[0]));
     this.requireElement("#mode-preview").addEventListener("click", () => this.setMode("preview"));
     this.requireElement("#mode-agent").addEventListener("click", () => this.setMode("agent"));
     this.requireElement("#mode-isolated").addEventListener("click", () => this.setMode("isolated"));
@@ -251,6 +274,12 @@ export class App {
     });
     document.addEventListener("visibilitychange", () => {
       if (this.mode !== "agent" && document.hidden && this.session.phase === "running") this.session.pause();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        this.setGuideOpen(false);
+        if (this.requireElement("#start-screen").classList.contains("start-screen--visible")) this.closeStartScreen();
+      }
     });
     window.addEventListener("beforeunload", () => this.dispose(), { once: true });
   }
@@ -470,6 +499,7 @@ export class App {
       this.root.querySelectorAll<HTMLElement>("[data-speed]").forEach((item) => item.classList.toggle("segment__button--active", item.dataset.speed === "1"));
       this.setTelemetryPresentation("live");
       this.selectPanel("agent");
+      this.renderMissionSummary();
       this.scene?.setAgentCourseProgress(true, 0);
       this.resetAgentTrial(Number(this.requireInput("#agent-seed").value));
     } else if (mode === "isolated") {
@@ -774,7 +804,7 @@ export class App {
   private renderAgentPanel(frame: SensorFrame): void {
     const observation = this.agentTrial.observation(frame);
     const values: Record<string, string> = {
-      "#agent-phase": observation.phase.toUpperCase().replace("_", " "),
+      "#agent-phase": observation.phase === "running" && observation.actionsUsed === 0 ? "READY" : observation.phase.toUpperCase().replace("_", " "),
       "#agent-checkpoints": `${observation.checkpoints.reached} / ${observation.checkpoints.total}`,
       "#agent-next": observation.checkpoints.nextId ?? "FINISH",
       "#agent-position": `${observation.position.x.toFixed(2)}, ${observation.position.y.toFixed(2)}`,
@@ -799,8 +829,10 @@ export class App {
 
   private async copyAgentTranscript(): Promise<void> {
     const transcript: AgentTranscript = this.agentTrial.transcript();
-    await navigator.clipboard.writeText(JSON.stringify(transcript, null, 2));
-    this.showAgentStatus("Transcript copied. Submit it for isolated deterministic scoring.", false);
+    await this.writeClipboard(JSON.stringify(transcript, null, 2));
+    this.showAgentStatus(this.activeCourse.authoritative
+      ? "Transcript copied. It is eligible for isolated deterministic scoring."
+      : "Transcript copied. This practice/local route cannot mint an authoritative score.", false);
   }
 
   private async executeAgentFormAction(): Promise<void> {
@@ -822,6 +854,10 @@ export class App {
   private async runIsolatedAgentEvaluation(): Promise<void> {
     const button = this.requireElement("#agent-isolated") as HTMLButtonElement;
     const accessCode = this.requireInput("#agent-access-code").value;
+    if (!this.activeCourse.authoritative) {
+      this.showAgentStatus("Practice and imported routes are local trials. Choose the official Slalom Ramp for isolated scoring.", true);
+      return;
+    }
     button.disabled = true;
     this.showAgentStatus("Submitting the bounded transcript for isolated deterministic replay…", false);
     this.clearEvidence();
@@ -886,6 +922,132 @@ export class App {
     this.requireElement("#boot-progress").setAttribute("style", `--progress:${progress}%`);
   }
 
+  private openStartScreen(): void {
+    this.renderCourseLibrary();
+    this.requireElement("#start-screen").classList.add("start-screen--visible");
+    this.requireElement(".app-shell").setAttribute("inert", "");
+    window.setTimeout(() => this.requireElement("#start-copy").focus(), 60);
+  }
+
+  private closeStartScreen(): void {
+    this.requireElement("#start-screen").classList.remove("start-screen--visible");
+    this.requireElement(".app-shell").removeAttribute("inert");
+    this.requireElement("#open-courses").focus();
+  }
+
+  private setGuideOpen(open: boolean): void {
+    const drawer = this.requireElement("#guide-drawer");
+    const wasOpen = drawer.classList.contains("guide-drawer--open");
+    if (!open && !wasOpen) return;
+    drawer.classList.toggle("guide-drawer--open", open);
+    drawer.setAttribute("aria-hidden", String(!open));
+    if (open) {
+      this.requireElement(".app-shell").setAttribute("inert", "");
+      window.setTimeout(() => this.requireElement("#guide-close").focus(), 40);
+    } else {
+      if (!this.requireElement("#start-screen").classList.contains("start-screen--visible")) this.requireElement(".app-shell").removeAttribute("inert");
+      this.requireElement("#guide-open").focus();
+    }
+  }
+
+  private selectCourse(index: number): void {
+    const listing = this.courseListings[index];
+    if (!listing) return;
+    this.activeCourse = listing;
+    this.agentTrial.configureCourse(listing.course);
+    this.scene?.configureAgentCourse(listing.course.checkpoints);
+    if (this.engine) this.resetAgentTrial(Number(this.requireInput("#agent-seed").value));
+    this.renderCourseLibrary();
+    this.renderMissionSummary();
+  }
+
+  private renderCourseLibrary(): void {
+    this.requireElement("#course-list").innerHTML = this.courseListings.map((listing, index) => `
+      <button class="course-row${listing === this.activeCourse ? " course-row--active" : ""}" data-course-index="${index}">
+        <span class="course-row__map">${listing.course.checkpoints.map((_, point) => `<i style="--point:${point}"></i>`).join("")}</span>
+        <span class="course-row__copy"><strong>${this.escapeHtml(listing.title)}</strong><small>${this.escapeHtml(listing.summary)}</small></span>
+        <span class="course-row__meta"><b>${this.escapeHtml(listing.difficulty)}</b><em>${listing.authoritative ? "OFFICIAL SCORE" : listing.source === "imported" ? "LOCAL IMPORT" : "PRACTICE"}</em></span>
+      </button>`).join("");
+    this.requireElement("#selected-course-name").textContent = this.activeCourse.title;
+    this.requireElement("#selected-course-summary").textContent = this.activeCourse.summary;
+    this.requireElement("#selected-course-meta").textContent = `${this.activeCourse.course.checkpoints.length} checkpoints · ${this.activeCourse.course.maxSeconds}s · ${this.activeCourse.authoritative ? "Solari scoring available" : "browser trial only"}`;
+  }
+
+  private renderMissionSummary(): void {
+    this.requireElement("#mission-course").textContent = this.activeCourse.title;
+    this.requireElement("#mission-description").textContent = this.activeCourse.summary;
+    this.requireElement("#mission-authority").textContent = this.activeCourse.authoritative ? "OFFICIAL · ISOLATED SCORE ELIGIBLE" : "PRACTICE · LOCAL TRIAL ONLY";
+    const isolated = this.requireElement("#agent-isolated") as HTMLButtonElement;
+    isolated.disabled = !this.activeCourse.authoritative;
+    isolated.textContent = this.activeCourse.authoritative ? "RUN ISOLATED SCORE" : "OFFICIAL COURSE REQUIRED";
+  }
+
+  private async copyMcpCommand(): Promise<void> {
+    const command = "codex mcp add solari-agent-arena -- node --env-file-if-exists=.env.local scripts/arena-mcp-server.mjs";
+    await this.writeClipboard(command);
+    const button = this.requireElement("#copy-mcp-command");
+    button.textContent = "COPIED";
+    window.setTimeout(() => { button.textContent = "COPY SETUP COMMAND"; }, 1_800);
+  }
+
+  private async copyMissionPrompt(closeAfterCopy: boolean): Promise<void> {
+    const seed = Number(this.requireInput("#agent-seed").value) || 42;
+    const prompt = buildAgentPrompt(this.activeCourse, seed);
+    const button = this.requireElement(closeAfterCopy ? "#start-copy" : "#mission-copy");
+    const original = button.textContent;
+    try {
+      await this.writeClipboard(prompt);
+      button.textContent = "PROMPT COPIED — GIVE IT TO YOUR AGENT";
+      button.classList.add("copy-success");
+      this.requireElement("#prompt-fallback").classList.remove("prompt-fallback--visible");
+      if (closeAfterCopy) window.setTimeout(() => this.closeStartScreen(), 500);
+      window.setTimeout(() => { button.textContent = original; button.classList.remove("copy-success"); }, 2_400);
+    } catch {
+      const fallback = this.requireElement("#prompt-fallback") as HTMLTextAreaElement;
+      fallback.value = prompt;
+      fallback.classList.add("prompt-fallback--visible");
+      fallback.focus(); fallback.select();
+      this.requireElement("#course-import-status").textContent = "Automatic copy was blocked. The complete mission is selected below—copy it, paste it into your agent, and keep this tab open.";
+    }
+  }
+
+  private async importCourse(file?: File): Promise<void> {
+    if (!file) return;
+    try {
+      if (file.size > 32_000) throw new Error("Course files must be 32 KB or smaller.");
+      const listing = parseImportedCourse(JSON.parse(await file.text()));
+      const existing = this.courseListings.findIndex((item) => item.course.courseId === listing.course.courseId);
+      if (existing >= 0 && this.courseListings[existing]?.source !== "imported") throw new Error("Built-in course IDs cannot be replaced by local imports.");
+      if (existing >= 0) this.courseListings.splice(existing, 1, listing); else this.courseListings.push(listing);
+      this.selectCourse(this.courseListings.indexOf(listing));
+      this.requireElement("#course-import-status").textContent = `${listing.title} is a local browser trial. The file never leaves this page and cannot mint a Solari score.`;
+    } catch (error) {
+      this.requireElement("#course-import-status").textContent = String(error instanceof Error ? error.message : error);
+    } finally { this.requireInput("#course-import").value = ""; }
+  }
+
+  private async writeClipboard(text: string): Promise<void> {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const fallback = document.createElement("textarea");
+      fallback.value = text;
+      fallback.setAttribute("readonly", "");
+      fallback.style.position = "fixed";
+      fallback.style.left = "-10000px";
+      document.body.append(fallback);
+      try {
+        fallback.select();
+        if (!document.execCommand("copy")) throw new Error("Copy failed.");
+      } finally { fallback.remove(); }
+    }
+  }
+
+  private escapeHtml(value: string): string {
+    return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", "\"": "&quot;" })[character] ?? character);
+  }
+
   private fail(message: string): void {
     this.requireElement("#boot-label").textContent = message;
     this.requireElement("#boot").classList.add("boot--error");
@@ -912,7 +1074,7 @@ export class App {
       <div class="app-shell">
         <header class="topbar">
           <div class="brand"><span class="brand__mark">SA</span><span>SOLARI AGENT ARENA</span></div>
-          <div class="event-title"><span>AI AGENT OBSTACLE BENCHMARK</span><strong>OBSERVE / ACT / VERIFY</strong></div>
+          <nav class="product-nav" aria-label="Arena navigation"><button id="open-courses">COURSES</button><button id="guide-open">TOOLS & PHYSICS</button></nav>
           <div class="system-state"><span id="phase-dot" class="status-dot status-dot--loading"></span><span id="phase-label" data-testid="phase-label">LOADING</span><small>MUJOCO 3.12 / WASM</small></div>
         </header>
 
@@ -990,7 +1152,13 @@ export class App {
               </section>
             </div>
             <div id="agent-panel" class="inspector-panel inspector-panel--agent">
-              <div class="mode-note"><span>NON-AUTHORITATIVE TOOL TRIAL</span><p>An external model observes this page and emits bounded actions. Only the resulting transcript can be judged in Solari.</p></div>
+              <header class="mission-head">
+                <span id="mission-authority">OFFICIAL · ISOLATED SCORE ELIGIBLE</span>
+                <h1 id="mission-course">${this.escapeHtml(this.activeCourse.title)}</h1>
+                <p id="mission-description">${this.escapeHtml(this.activeCourse.summary)}</p>
+                <div class="mission-actions"><button id="mission-copy" class="button button--accent">COPY AGENT PROMPT</button><button id="mission-courses" type="button" class="button button--quiet">CHANGE COURSE</button></div>
+                <label class="mission-seed">SEED <input id="agent-seed" type="number" min="0" max="4294967295" value="42" /></label>
+              </header>
               <dl class="agent-grid">
                 <div><dt>PHASE</dt><dd id="agent-phase" data-testid="agent-phase">IDLE</dd></div>
                 <div><dt>CHECKPOINTS</dt><dd id="agent-checkpoints" data-testid="agent-checkpoints">0 / 5</dd></div>
@@ -1001,6 +1169,8 @@ export class App {
                 <div><dt>COLLISIONS</dt><dd id="agent-collisions" data-testid="agent-collisions">0</dd></div>
                 <div><dt>ACTIONS</dt><dd id="agent-actions" data-testid="agent-actions">0 / 120</dd></div>
               </dl>
+              <details id="agent-manual-tools" class="manual-tools">
+                <summary>Manual tool console <span>for testing & automation</span></summary>
               <div class="agent-actions" aria-label="Agent tool actions">
                 <button data-agent-preset="left" data-testid="agent-turn-left">ARC LEFT</button>
                 <button data-agent-preset="forward" data-testid="agent-forward">FORWARD</button>
@@ -1017,10 +1187,10 @@ export class App {
               <pre id="agent-transcript" class="agent-transcript">No actions recorded.</pre>
               <textarea id="agent-observation-json" class="agent-transcript-json" data-testid="agent-observation-json" tabindex="-1" aria-hidden="true"></textarea>
               <textarea id="agent-transcript-json" class="agent-transcript-json" data-testid="agent-transcript-json" tabindex="-1" aria-hidden="true"></textarea>
-              <div class="evaluation-input"><label for="agent-seed">SEED</label><input id="agent-seed" type="number" min="0" max="4294967295" value="42" /><span>60 S / 120 ACTIONS</span></div>
               <div id="agent-interface" class="agent-interface" data-testid="agent-interface" data-api-version="${AGENT_TOOL_VERSION}">INITIALIZING TOOL INTERFACES…</div>
               <div class="evaluation-input"><label for="agent-access-code">ACCESS</label><input id="agent-access-code" type="password" autocomplete="off" placeholder="demo code" /><span>SERVER ADMISSION ONLY</span></div>
               <div id="agent-status" class="console evaluation-status" data-testid="agent-status">Open with ?agent=1 or call window.solariAgentArena.</div>
+              </details>
               <div class="agent-footer"><button id="agent-reset" class="button button--quiet">RESET TRIAL</button><button id="agent-copy" class="button button--quiet">COPY TRANSCRIPT</button><button id="agent-isolated" class="button button--accent">RUN ISOLATED SCORE</button></div>
             </div>
             <div id="code-panel" class="inspector-panel inspector-panel--code">
@@ -1060,6 +1230,28 @@ export class App {
           <div class="chart"><div class="chart__label"><span>BODY PITCH</span><small id="pitch-chart-mode">RAD</small></div><svg viewBox="0 0 360 74" preserveAspectRatio="none"><path d="M0 18H360M0 37H360M0 56H360"/><polyline id="pitch-line" points=""/></svg></div>
           <div class="run-controls"><button id="power-button" class="button button--power">POWER ON</button><button id="reset-button" class="button button--quiet">RESET</button><button id="run-button" class="button button--accent">ENTER FIELD</button></div>
         </section>
+      </div>
+      <section id="start-screen" class="start-screen" role="dialog" aria-modal="true" aria-labelledby="start-title" aria-label="Choose an agent course">
+        <div class="start-screen__veil"></div>
+        <div class="start-screen__content">
+          <header><span>SA / COURSE LIBRARY</span><button id="close-courses" aria-label="Close course library">×</button></header>
+          <div class="start-screen__intro"><small>AI ROBOT BENCHMARK</small><h1 id="start-title">Pick a course.<br/>Hand it to your agent.</h1><p>Copy the mission, paste it into Codex or your local model, and keep this tab open while it drives. The prompt includes tools, physics, limits, and the finish condition.</p></div>
+          <div id="course-list" class="course-list"></div>
+          <div class="selected-course"><span>SELECTED</span><strong id="selected-course-name">${this.activeCourse.title}</strong><p id="selected-course-summary">${this.activeCourse.summary}</p><small id="selected-course-meta"></small></div>
+          <div class="start-screen__actions"><button id="start-copy" class="start-primary">COPY PROMPT & ENTER ARENA <span>↗</span></button><label class="import-course">IMPORT COURSE JSON<input id="course-import" type="file" accept="application/json,.json" /></label></div>
+          <p id="course-import-status" class="course-import-status">Imported route manifests stay in this browser and cannot mint Solari scores. <a href="/course-template.json" download>Download the course template.</a></p>
+          <textarea id="prompt-fallback" class="prompt-fallback" aria-label="Agent mission prompt"></textarea>
+        </div>
+      </section>
+      <div id="guide-drawer" class="guide-drawer" aria-hidden="true">
+        <button id="guide-backdrop" class="guide-drawer__backdrop" aria-label="Close guide"></button>
+        <aside>
+          <header><div><small>AGENT FIELD MANUAL</small><h2>Tools & physics</h2></div><button id="guide-close" aria-label="Close guide">×</button></header>
+          <section class="tool-setup"><span>01 / START</span><h3>Where the tools are</h3><p><b>Codex browser:</b> open this page and use its page/site tools. <b>Local models:</b> connect the checked-in stdio MCP server. <b>Safari:</b> use browser automation or the MCP bridge.</p><code>codex mcp add solari-agent-arena -- node --env-file-if-exists=.env.local scripts/arena-mcp-server.mjs</code><button id="copy-mcp-command">COPY SETUP COMMAND</button></section>
+          <section class="tool-list"><span>02 / TOOL LOOP</span><dl><div><dt>arena_open</dt><dd>Launch a recording Solari Browser session.</dd></div><div><dt>arena_reset</dt><dd>Start the selected route at a deterministic seed.</dd></div><div><dt>arena_look</dt><dd>Return a screenshot and structured state.</dd></div><div><dt>arena_observe</dt><dd>Read state without advancing simulation.</dd></div><div><dt>arena_act</dt><dd>Apply bounded drive, turn, and duration.</dd></div><div><dt>arena_transcript</dt><dd>Return the exact controller artifact.</dd></div><div><dt>arena_close</dt><dd>Retain recording and hash receipt.</dd></div></dl></section>
+          <section class="physics-sheet"><span>03 / PHYSICS</span><h3>MuJoCo 3.12 · deterministic clock</h3><code>M(q)·v̇ + c(q,v) = τ + J(q)ᵀf</code><p><b>Physics step</b> Δt = 0.002 s<br/><b>Control/gait tick</b> Δt<sub>c</sub> = 0.010 s<br/><b>Planar command</b> v<sub>x</sub> = cos(ψ)d, v<sub>y</sub> = sin(ψ)d<br/><b>Energy</b> E += Σ|τᵢq̇ᵢ|Δt</p><small>Observing, screenshots, network delay, and model thinking consume zero simulated time.</small></section>
+          <section><span>04 / AUTHORITY</span><h3>Preview here. Judge in Solari.</h3><p>The browser can be manipulated, so it never mints a score. Official transcripts are replayed and scored in fixed-step MuJoCo inside a fresh Solari Sandbox.</p></section>
+        </aside>
       </div>
       <div id="boot" class="boot"><div class="boot__brand">SA</div><p id="boot-label">Initializing Solari Agent Arena</p><div class="boot__track"><i id="boot-progress"></i></div><small>LOCAL PREVIEW BOOTS FIRST / AUTHORITY STAYS SERVER-SIDE</small></div>
     `;

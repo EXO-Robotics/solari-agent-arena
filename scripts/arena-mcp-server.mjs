@@ -29,8 +29,10 @@ class ArenaBrowser {
     this.url = target;
     this.startedAt = new Date().toISOString();
     await this.page.goto(this.url, { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await this.page.getByTestId("agent-observation-json").waitFor({ timeout: 60_000 });
-    return this.reset(seed);
+    await this.page.getByTestId("agent-phase").waitFor({ timeout: 60_000 });
+    const observation = await this.reset(seed);
+    await this.page.locator("#agent-manual-tools summary").click();
+    return observation;
   }
 
   async reset(seed = 42) {

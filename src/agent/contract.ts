@@ -54,11 +54,11 @@ export interface AgentTranscript {
   actions: AgentAction[];
 }
 
-export function validateAgentAction(input: { drive: number; turn: number; durationMs: number }): void {
+export function validateAgentAction(input: { drive: number; turn: number; durationMs: number }, course: AgentCourse = AGENT_COURSE): void {
   if (![input.drive, input.turn, input.durationMs].every(Number.isFinite)) throw new Error("Agent action values must be finite numbers.");
-  if (Math.abs(input.drive) > AGENT_COURSE.maxDrive) throw new Error(`drive must be between -${AGENT_COURSE.maxDrive} and ${AGENT_COURSE.maxDrive}.`);
-  if (Math.abs(input.turn) > AGENT_COURSE.maxTurn) throw new Error(`turn must be between -${AGENT_COURSE.maxTurn} and ${AGENT_COURSE.maxTurn}.`);
-  if (!Number.isInteger(input.durationMs) || input.durationMs < 100 || input.durationMs > AGENT_COURSE.maxActionDurationMs) {
-    throw new Error(`durationMs must be an integer from 100 to ${AGENT_COURSE.maxActionDurationMs}.`);
+  if (Math.abs(input.drive) > course.maxDrive) throw new Error(`drive must be between -${course.maxDrive} and ${course.maxDrive}.`);
+  if (Math.abs(input.turn) > course.maxTurn) throw new Error(`turn must be between -${course.maxTurn} and ${course.maxTurn}.`);
+  if (!Number.isInteger(input.durationMs) || input.durationMs < 100 || input.durationMs > course.maxActionDurationMs) {
+    throw new Error(`durationMs must be an integer from 100 to ${course.maxActionDurationMs}.`);
   }
 }

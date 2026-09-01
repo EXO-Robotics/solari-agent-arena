@@ -2,20 +2,26 @@
 
 > Let an AI agent see a robot, control it through bounded tools, and cross an obstacle course. Preview instantly in the browser; score only by deterministic replay inside Solari.
 
-[Live arena](https://solari-agent-arena.vercel.app/?agent=1) · [Authoritative agent replay](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid-agent.solari-run.json) · [Frozen agent E2E proof](evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/assertions.json) · [Architecture](docs/ARCHITECTURE.md)
+[Live arena](https://solari-agent-arena.vercel.app/) · [Authoritative agent replay](https://solari-agent-arena.vercel.app/?evidence=%2Fevidence%2Fvalid-agent.solari-run.json) · [Frozen agent E2E proof](evidence/agent-e2e/0472ad47-5a2c-4c7f-9dd5-a590ada0880d/assertions.json) · [Architecture](docs/ARCHITECTURE.md)
 
-Solari Agent Arena turns [Robot-3D-Sim](https://github.com/EXO-Robotics/Robot-3D-Sim) into an embodied-agent benchmark. A local model, Codex, or browser-driving agent gets four narrow operations—reset, observe, act, and transcript—while looking at the same MuJoCo/Three.js arena as the human reviewer. The agent must visit five checkpoints, route around the ramp, and reach the final beacon.
+Solari Agent Arena turns [Robot-3D-Sim](https://github.com/EXO-Robotics/Robot-3D-Sim) into an embodied-agent benchmark. A local model, Codex, or browser-driving agent controls the same MuJoCo/Three.js arena as the human reviewer through four page tools or a seven-tool recording MCP bridge. The frozen official route has five checkpoints; practice and local routes can define other bounded checkpoint sequences.
 
 The browser trial is deliberately **non-authoritative**. The only authoritative score comes from replaying the validated action transcript with fixed-step MuJoCo inside a fresh **Solari Sandbox**, then binding the result, telemetry, replay state, course, seed, and transcript to SHA-256 evidence.
 
-## The product in two minutes
+## The product in two clicks
 
-1. Open `/?agent=1`. The simulation clock is frozen while the model looks or thinks.
-2. The model calls `arena_observe` and `arena_act({drive, turn, durationMs})`. Every action is bounded to 100–2,000 ms of simulated time.
-3. The page shows pose, yaw, next checkpoint, collisions, simulated time, and remaining action budget. It records the exact action transcript.
-4. `RUN ISOLATED SCORE` submits only that transcript and seed. The external agent itself is **not** claimed to run inside Solari.
-5. A fresh Solari Sandbox replays the transcript through the frozen deterministic gait and MuJoCo model, scores it, emits `solari.arena.agent-run.v1`, and is killed before authority is issued.
-6. The browser verifies artifact hashes and replays recorded `qpos`/`qvel`; it never rescored the run.
+1. Open the arena and choose an official, practice, or locally imported course.
+2. Click **Copy prompt & enter arena**, paste the mission into Codex or a local model, and let it use the exposed tools.
+
+The copied mission includes tool discovery, every tool’s role, course coordinates, action limits, the MuJoCo equations/timing, and the finish condition. The simulation clock is frozen while the model looks or thinks. For an official course, `RUN ISOLATED SCORE` submits only the transcript and seed; the external agent itself is **not** claimed to run inside Solari.
+
+A fresh Solari Sandbox replays the transcript through the frozen deterministic gait and MuJoCo model, scores it, emits `solari.arena.agent-run.v1`, and is killed before authority is issued. The browser verifies artifact hashes and replays recorded `qpos`/`qvel`; it never rescores the run.
+
+## Course library
+
+The picker currently contains one frozen official benchmark and two practice routes. Users can import a bounded `solari.arena.course.v1` JSON route using the [course template](public/course-template.json). Imports update the live checkpoint path and the copied agent prompt, but run locally on the fixed physics arena.
+
+Imported routes are deliberately **not authoritative**. Community publishing, immutable versioning, moderation, and server-side course registration must exist before an uploaded course can mint a comparable Solari score. The UI says “local trial only” and disables isolated scoring for these routes rather than overstating the boundary.
 
 ## Why Solari matters
 
@@ -91,6 +97,8 @@ The MCP bridge reads `SOLARI_API_KEY` only in its local Node process. The visite
 ### Safari or ordinary browser automation
 
 The Agent Tools panel exposes accessible buttons and status fields. Browser automation may also call the same frozen API at `window.solariAgentArena`. Safari does not provide Codex site tools; a local model needs computer-use/browser automation or the standard MCP bridge.
+
+The in-app **Tools & physics** drawer explains where each interface appears, lists all seven MCP operations, provides a copyable setup command, and shows the exact fixed-step dynamics used by the benchmark. The manual numeric action console stays collapsed unless a developer or verifier opens it.
 
 ## Tool and transcript contract
 
