@@ -22,8 +22,9 @@ class ArenaBrowser {
   url;
   startedAt;
 
-  async open(url = process.env.ARENA_URL || DEFAULT_ARENA_URL, seed = 42, courseId = BUILT_IN_COURSE_IDS[0]) {
+  async open(url = process.env.ARENA_URL || DEFAULT_ARENA_URL, seed = 42, courseId) {
     if (!process.env.SOLARI_API_KEY) throw new Error("SOLARI_API_KEY is required by the local MCP bridge.");
+    if (!courseId) throw new Error("courseId is required; copy it from the selected arena mission.");
     const target = resolveArenaUrl(url, process.env.ARENA_URL || DEFAULT_ARENA_URL, courseId);
     await this.close(false);
     this.client = new Solari({ apiKey: process.env.SOLARI_API_KEY });
@@ -133,7 +134,7 @@ const visualResult = async (value) => {
 };
 
 function buildServer() {
-  const server = new McpServer({ name: "solari-agent-arena", version: "1.0.0" }, {
+  const server = new McpServer({ name: "solari-agent-arena", version: "1.1.0" }, {
     capabilities: { tools: {} },
     instructions: "Robot benchmark tools. Start every new mission with arena_open({seed, courseId})—it launches the selected built-in course, so no pre-opened Safari tab is needed. Verify the returned courseId before acting. Then repeat arena_observe or arena_look → one bounded arena_act → inspect returned state until complete. Finish with arena_transcript and arena_close. Observing and thinking cost zero simulated time. Never invent tool results.",
   });
@@ -142,7 +143,7 @@ function buildServer() {
     description: "Launch a recording-enabled Solari Browser, open the robot benchmark, reset it, and return the first observation plus screenshot.",
     inputSchema: z.object({
       seed: z.number().int().min(0).max(0xffff_ffff).default(42),
-      courseId: z.enum(BUILT_IN_COURSE_IDS).default(BUILT_IN_COURSE_IDS[0]),
+      courseId: z.enum(BUILT_IN_COURSE_IDS),
       url: z.string().url().optional(),
     }),
   }, async ({ seed, courseId, url }) => visualResult(await arena.open(url, seed, courseId)));

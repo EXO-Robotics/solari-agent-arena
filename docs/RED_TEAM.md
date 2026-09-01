@@ -76,3 +76,25 @@ Grok session `01a05d46-1779-75d1-a820-55b26537c5a2` reported `RELEASE` with no C
 - No legitimate Critical/High/Medium remains.
 - The restart is explicit and unavoidable, not a product defect.
 - **`RELEASE` — effectively 10/10 for scope.**
+
+## Course-binding regression review
+
+A real new-task result exposed that First Steps copied as `practice-first-steps-v1` but the MCP bridge launched the default official route. The agent correctly stopped without acting. The accepted fix makes the built-in course an explicit copied-prompt → required MCP input → allow-listed same-origin URL → pre-MuJoCo browser selection contract, with a mandatory first-observation match. Unknown and imported IDs fail closed; imported manifests remain same-tab trials. Session and verifier evidence paths now resolve from the repository module location.
+
+The first advisory attempt (`01a05d63-47ed-7a02-9053-5d5d7d786fb4`) exhausted its six-turn budget after a read-tool error and returned no verdict. Its incomplete internal notes contradicted inspected code and were rejected, not counted as approval.
+
+Fresh Grok session `01a05d65-a073-7473-9c7e-afd3208de850` inspected the targeted code and live proof, reported no legitimate Critical/High/Medium findings, and issued `RELEASE` at 9/10. Two Low findings were accepted:
+
+- First Steps lacked its own exact copied-prompt assertion. Added one for `arena_open({"seed":42,"courseId":"practice-first-steps-v1"})` and its observation guard.
+- `courseId` still defaulted to the official route when omitted. MCP v1.1 now requires the allow-listed field, and the live verifier asserts omission is rejected before a Browser session launches.
+
+The real production MCP qualification then passed again. Retained proof [`9b700e6322ef76d8/assertions.json`](../evidence/mcp/9b700e6322ef76d8/assertions.json) shows missing-course rejection, exact First Steps selection at seed 42 with 0 actions/0 simulated seconds, and the unchanged official 5/5, 21-action, zero-collision completion.
+
+Fresh final Grok session `01a05d6c-fcd6-7ac2-be05-fa2cd4d1704d` reviewed the revised code and proof and concluded:
+
+- Critical: 0; High: 0; Medium: 0; Low: 0.
+- Both prior Low findings are closed in code and live evidence.
+- The final production proof is accepted.
+- Confidence in architecture and claim honesty is strong.
+- Solari materially improves Robot-3D-Sim.
+- **`RELEASE` — 10/10 and effectively 10/10 for this gate.**

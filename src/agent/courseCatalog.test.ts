@@ -33,6 +33,12 @@ describe("course library", () => {
     expect(prompt).toContain("ARENA_COURSE_MISMATCH");
   });
 
+  it("binds the First Steps mission to its exact MCP courseId", () => {
+    const prompt = buildAgentPrompt(COURSE_CATALOG[1]!, 42);
+    expect(prompt).toContain('arena_open({"seed":42,"courseId":"practice-first-steps-v1"})');
+    expect(prompt).toContain("courseId=practice-first-steps-v1");
+  });
+
   it("does not claim the MCP bridge can reconstruct local imports", () => {
     const listing = parseImportedCourse({ schemaVersion: "solari.arena.course.v1", courseId: "my-route-v1", maxSeconds: 30, maxActions: 50, maxActionDurationMs: 1500, maxDrive: 1.2, maxTurn: 1, checkpoints: [{ id: "a", x: 2, y: 0, radius: 1 }, { id: "b", x: 4, y: 1, radius: 1 }] });
     const prompt = buildAgentPrompt(listing);

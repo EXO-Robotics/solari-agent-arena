@@ -82,7 +82,7 @@ Codex can discover site tools only when the page is opened inside the browser su
 
 ### Local models or Codex CLI: standard MCP bridge
 
-The checked-in stdio server launches a recording-enabled Solari Browser and exposes `arena_open`, `arena_reset`, `arena_observe`, `arena_look`, `arena_act`, `arena_transcript`, and `arena_close`. Start with `arena_open({ seed, courseId })`; `courseId` is allow-listed to the three built-in versioned routes and the returned observation must match it before the agent acts. `arena_reset` reuses the active Browser session, while `arena_look` and every action return both structured state and a PNG view. Closing can retain the transcript, final screenshot, rrweb replay, and hash receipt under this repository's `evidence/agent-sessions/` directory regardless of the model host's working directory.
+The checked-in stdio server launches a recording-enabled Solari Browser and exposes `arena_open`, `arena_reset`, `arena_observe`, `arena_look`, `arena_act`, `arena_transcript`, and `arena_close`. Start with `arena_open({ seed, courseId })`; `courseId` is required, allow-listed to the three built-in versioned routes, and the returned observation must match it before the agent acts. An omitted or unknown ID fails instead of silently opening another route. `arena_reset` reuses the active Browser session, while `arena_look` and every action return both structured state and a PNG view. Closing can retain the transcript, final screenshot, rrweb replay, and hash receipt under this repository's `evidence/agent-sessions/` directory regardless of the model host's working directory.
 
 For Codex, save the key in `.env.local`, then run the idempotent connector from the repository root:
 

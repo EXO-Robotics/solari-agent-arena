@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "solari.arena.agent-session.v1",
+  "sessionIdHash": "9b700e6322ef76d8d963a410d4b729a06794148919647ce96b02f1fb9ef7e449",
+  "arenaUrl": "https://solari-agent-arena.vercel.app/?agent=1&course=arena-slalom-ramp-v1",
+  "startedAt": "2026-09-01T14:39:57.958Z",
+  "completedAt": "2026-09-01T14:42:14.097Z",
+  "transcriptHash": "069e233483049d5c223b29b694d35b944dfc5b8b635c34c8ad079653ce5357fc",
+  "screenshotHash": "8e57c1ae35aee29505415b4aa23dd86d1f7458e962ef103d2774a662611863d3",
+  "replayHash": "07c474054b0a094407403180a6c4869e936dceaada8d2043385ad13db04952e1"
+}
