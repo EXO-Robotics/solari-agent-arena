@@ -23,8 +23,13 @@ describe("course library", () => {
     expect(prompt).toContain("SYSTEM PROMPT — SOLARI AGENT ARENA LIVE RUN");
     expect(prompt).toContain("/api/arena-command");
     expect(prompt).toContain('\"schemaVersion\":\"solari.arena.http-command.v1\",\"operation\":\"connect\",\"ticket\":\"opaque-ticket\"');
-    expect(prompt).toContain('\"operation\":\"act\"');
-    expect(prompt).toContain('\"operation\":\"finish\"');
+    expect(prompt).toContain('operation:"act"');
+    expect(prompt).toContain('operation:"finish"');
+    expect(prompt).toContain("Never copy, paste, retype, summarize, or manually interpolate arenaSession");
+    expect(prompt).toContain("--slurpfile session '/tmp/solari-agent-arena-");
+    expect(prompt).toContain("jq -e '.arenaSession and .observation'");
+    expect(prompt).toContain("rm -f '/tmp/solari-agent-arena-");
+    expect(prompt).not.toContain('\"arenaSession\":\"<arenaSession>\"');
     expect(prompt).toContain("Δt = 0.002s");
     expect(prompt).toContain("120 actions and 60s");
     expect(prompt).toContain("east-beacon");

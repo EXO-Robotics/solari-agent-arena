@@ -18,6 +18,9 @@ export function buildAgentPrompt(
     : course.checkpoints.map((point, index) => `${index + 1}. ${point.id}`).join("\n");
   const schemaVersion = "solari.arena.http-command.v1";
   const connectBody = JSON.stringify({ schemaVersion, operation: "connect", ticket: pairingTicket });
+  const stateId = (pairingTicket.split(".")[1] ?? pairingTicket).replace(/[^a-z0-9_-]/gi, "").slice(0, 16) || "run";
+  const sessionFile = `/tmp/solari-agent-arena-${stateId}-session.json`;
+  const lastFile = `/tmp/solari-agent-arena-${stateId}-last.json`;
   return `SYSTEM PROMPT — SOLARI AGENT ARENA LIVE RUN
 
 You are controlling the humanoid robot in a live, recorded Solari Agent Arena practice session. Start now. Do not ask the user to install MCP, clone a repository, expose a Solari key, or reconnect Safari.
@@ -27,9 +30,9 @@ Use your shell or ordinary HTTPS-request capability. POST JSON to:
 ${commandEndpoint}
 Set Content-Type: application/json. The complete short-lived connection command is:
 
-curl --silent --show-error --fail-with-body -X POST -H 'content-type: application/json' --data-raw '${connectBody}' '${commandEndpoint}'
+umask 077; curl --silent --show-error --fail-with-body -X POST -H 'content-type: application/json' --data-raw '${connectBody}' '${commandEndpoint}' > '${sessionFile}' && jq -e '.arenaSession and .observation' '${sessionFile}' >/dev/null && jq '.observation' '${sessionFile}'
 
-Run that command now. Its JSON returns arenaSession and the first observation. Treat ticket and arenaSession as temporary secrets: use them only for this run and do not repeat them in your final answer. If you truly have neither shell nor HTTPS capability, report ARENA_HTTP_UNAVAILABLE. A successful HTTP response is required before claiming the run started.
+Run that command now. It stores the exact arenaSession in a permission-restricted temporary file and prints only the first observation. Never copy, paste, retype, summarize, or manually interpolate arenaSession. Every later request must read it programmatically from '${sessionFile}' as shown below. If jq is unavailable, use an equivalent native JSON parser while preserving this rule; do not ask the user to install anything. Treat the ticket, session file, and arenaSession as temporary secrets: use them only for this run and never repeat them in your final answer. If you truly have neither shell nor HTTPS capability, report ARENA_HTTP_UNAVAILABLE. A successful HTTP response is required before claiming the run started.
 
 MISSION
 Complete ${JSON.stringify(listing.title)} (${course.courseId}) in checkpoint order. Seed: ${seed}. Observation track: ${track}.
@@ -37,11 +40,19 @@ Budget: ${course.maxActions} actions and ${course.maxSeconds}s simulated time. C
 ${checkpoints}
 
 HTTP CONTROL LOOP
-For every later call, POST one strict JSON object to the same endpoint:
-- Observe: {"schemaVersion":"${schemaVersion}","operation":"observe","arenaSession":"<arenaSession>"}
-- Act: {"schemaVersion":"${schemaVersion}","operation":"act","arenaSession":"<arenaSession>","expectedSequence":<nextExpectedSequence>,"drive":<number>,"turn":<number>,"durationMs":<integer>}
-- Finish: {"schemaVersion":"${schemaVersion}","operation":"finish","arenaSession":"<arenaSession>"}
-- Abort safely: {"schemaVersion":"${schemaVersion}","operation":"disconnect","arenaSession":"<arenaSession>"}
+For every later call, build one strict JSON object by reading arenaSession from the session file. Do not place the token in your command text. These are complete shell templates:
+
+Observe:
+jq -nc --slurpfile session '${sessionFile}' '{schemaVersion:"${schemaVersion}",operation:"observe",arenaSession:$session[0].arenaSession}' | curl --silent --show-error --fail-with-body -X POST -H 'content-type: application/json' --data-binary @- '${commandEndpoint}' > '${lastFile}' && jq -e '.observation' '${lastFile}'
+
+Act (change only the four small values passed through --argjson):
+jq -nc --slurpfile session '${sessionFile}' --argjson expectedSequence 0 --argjson drive 1.2 --argjson turn 0 --argjson durationMs 1000 '{schemaVersion:"${schemaVersion}",operation:"act",arenaSession:$session[0].arenaSession,expectedSequence:$expectedSequence,drive:$drive,turn:$turn,durationMs:$durationMs}' | curl --silent --show-error --fail-with-body -X POST -H 'content-type: application/json' --data-binary @- '${commandEndpoint}' > '${lastFile}' && jq -e '.observation' '${lastFile}'
+
+Finish after a terminal observation (removes the secret session file only after a receipt is returned):
+jq -nc --slurpfile session '${sessionFile}' '{schemaVersion:"${schemaVersion}",operation:"finish",arenaSession:$session[0].arenaSession}' | curl --silent --show-error --fail-with-body -X POST -H 'content-type: application/json' --data-binary @- '${commandEndpoint}' > '${lastFile}' && jq -e '.receipt' '${lastFile}' >/dev/null && rm -f '${sessionFile}' && jq '.receipt' '${lastFile}'
+
+Abort safely if you must stop early:
+jq -nc --slurpfile session '${sessionFile}' '{schemaVersion:"${schemaVersion}",operation:"disconnect",arenaSession:$session[0].arenaSession}' | curl --silent --show-error --fail-with-body -X POST -H 'content-type: application/json' --data-binary @- '${commandEndpoint}' > '${lastFile}' && jq -e '.disconnected == true' '${lastFile}' >/dev/null && rm -f '${sessionFile}' && jq . '${lastFile}'
 
 Action bounds: drive ∈ [-${course.maxDrive}, ${course.maxDrive}], turn ∈ [-${course.maxTurn}, ${course.maxTurn}], durationMs ∈ [100, ${course.maxActionDurationMs}]. Always use nextExpectedSequence from the previous response. An Act response already contains the resulting observation, so inspect it before acting again. Do not send concurrent actions. If the track is vision-v1, decode image.base64 as PNG and use the image; exact pose, yaw, velocity, and checkpoint coordinates are intentionally withheld.
 
