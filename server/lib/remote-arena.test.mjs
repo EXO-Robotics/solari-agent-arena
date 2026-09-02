@@ -32,6 +32,17 @@ describe("remote practice disclosure boundary", () => {
     expect(sanitizeRemoteError(new Error("wss://secret.getsolari.com/cdp/sid-123"))).toBe("Arena request failed safely. No authoritative result was created.");
   });
 
+  it("keeps slow bounded Browser actions inside the serverless deadline", () => {
+    const source = readFileSync(new URL("./remote-arena.mjs", import.meta.url), "utf8");
+    expect(source).toContain('const BROWSER_PROTOCOL_TIMEOUT_MS = 60_000;');
+    expect(source).not.toContain("protocolTimeout: 15_000");
+  });
+
+  it("exposes only a safe action-sequence recovery hint", () => {
+    expect(sanitizeRemoteError(new Error("Expected action sequence 7."))).toBe("Expected action sequence 7.");
+    expect(sanitizeRemoteError(new Error("Expected action sequence secret."))).toBe("Arena request failed safely. No authoritative result was created.");
+  });
+
   it("treats the tool API, not an early DOM marker, as Arena readiness", () => {
     const readyApi = Object.fromEntries(["reset", "manifest", "observe", "transcript", "act"].map((method) => [method, () => method]));
     expect(arenaToolApiReady({ agentPhaseElement: true })).toBe(false);

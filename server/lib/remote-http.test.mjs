@@ -24,6 +24,7 @@ describe("zero-install Arena HTTP commands", () => {
     expect(remoteHttpError(new Error("Hosted Agent Practice is paused on this deployment."))).toMatchObject({ status: 503 });
     expect(remoteHttpError(new Error("Invalid Arena capability."))).toMatchObject({ status: 401 });
     expect(remoteHttpError(new Error("expectedSequence is outside the action budget."))).toMatchObject({ status: 409 });
+    expect(remoteHttpError(new Error("Expected action sequence 7."))).toEqual({ status: 409, error: "Expected action sequence 7." });
     expect(remoteHttpError(new Error("wss://private.example/session"))).toEqual({ status: 502, error: "Arena request failed safely. No authoritative result was created." });
   });
 });

@@ -11,6 +11,7 @@ import {
 import { scheduleAdmissionExpiry } from "./remote-expiry-scheduler.mjs";
 
 const BROWSER_API_VERSION = "0.1.2";
+const BROWSER_PROTOCOL_TIMEOUT_MS = 60_000;
 const REQUIRED_ARENA_TOOL_METHODS = Object.freeze(["reset", "manifest", "observe", "transcript", "act"]);
 const REMOTE_TICKET_PHASES = new Set([
   "admission-creating", "provider-create", "admission-commit", "cleanup-schedule",
@@ -43,8 +44,8 @@ function requireRemoteConfig() {
 function connectOptions(endpoint) {
   const url = new URL(endpoint);
   return url.protocol === "wss:"
-    ? { browserWSEndpoint: endpoint, protocolTimeout: 15_000 }
-    : { browserURL: endpoint, protocolTimeout: 15_000 };
+    ? { browserWSEndpoint: endpoint, protocolTimeout: BROWSER_PROTOCOL_TIMEOUT_MS }
+    : { browserURL: endpoint, protocolTimeout: BROWSER_PROTOCOL_TIMEOUT_MS };
 }
 
 async function withBrowser(claims, callback) {
@@ -343,5 +344,6 @@ export function sanitizeRemoteError(error) {
     "expectedSequence is outside the action budget.", "Action values are outside the course limits.", "durationMs is outside the course limits.",
   ];
   const message = error instanceof Error ? error.message : String(error);
+  if (/^Expected action sequence \d+\.$/.test(message)) return message;
   return allowed.includes(message) ? message : "Arena request failed safely. No authoritative result was created.";
 }

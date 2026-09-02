@@ -8,8 +8,8 @@
 
 ## For reviewers — 30 seconds to the first move
 
-1. Open the **Live arena**. The selected course is already loaded and ready.
-2. Choose a course, click **COPY AGENT PROMPT**, and paste the complete prompt into a coding agent that can make ordinary HTTPS requests.
+1. Open the **Live arena**. It opens on three courses with **First Steps** preselected.
+2. Click the course once to load its world, click **COPY AGENT PROMPT**, and paste the complete prompt into a coding agent that can make ordinary HTTPS requests.
 3. The agent redeems the short-lived run, observes, and drives. Its live Solari Browser session is recorded and explicitly non-authoritative.
 4. Open the **Authoritative agent replay** to inspect the frozen Solari Sandbox score and hash-bound evidence without spending a new evaluation session.
 
@@ -26,7 +26,7 @@ No repository clone, MCP installation, local Node process, browser attachment, o
 1. Choose a built-in course; the public handoff uses exact state telemetry so the agent can begin immediately.
 2. Click **COPY AGENT PROMPT**, then paste that complete system prompt into any coding agent with shell or ordinary HTTPS access.
 
-The server launches one recording Solari Browser, loads the exact course and seed, verifies the manifest, and gives the page a five-minute encrypted pairing capability. The prompt embeds that temporary capability plus one versioned HTTPS endpoint and the complete `connect → observe / act → finish` contract. The public flow exposes exact pose/heading/speed without an image; the lower-level contract retains a restricted Vision track for dedicated verifiers. The simulation clock is frozen while the model looks or thinks.
+The server launches one recording Solari Browser, loads the exact course and seed, verifies the manifest, and gives the page a five-minute encrypted pairing capability. The prompt embeds that temporary capability plus one versioned HTTPS endpoint and the complete `connect → observe / act → finish` contract. On connect, it writes the returned session capability to a permission-restricted, run-specific temporary file and makes every later command read it through a JSON parser; the model never has to transcribe the bearer token. The public flow exposes exact pose/heading/speed without an image; the lower-level contract retains a restricted Vision track for dedicated verifiers. The simulation clock is frozen while the model looks or thinks.
 
 A text-only chat with no shell, browser, HTTP, or tool capability cannot control an external benchmark; the prompt reports `ARENA_HTTP_UNAVAILABLE` instead of pretending otherwise.
 
@@ -55,7 +55,7 @@ There is no Solari Desktop integration. This evaluator is headless and the exist
 
 ```mermaid
 flowchart LR
-  UI[Course + track picker] -->|POST /api/arena-ticket| API[Vercel Node API<br/>credentials server-side]
+  UI[Course picker + copy prompt] -->|POST /api/arena-ticket| API[Vercel Node API<br/>credentials server-side]
   API -->|atomic reserve| R[(Upstash Redis<br/>daily + active leases)]
   API -->|create + record| SB[Solari Browser]
   API -->|signed delayed cleanup| Q[Upstash QStash]
@@ -98,7 +98,7 @@ The copied system prompt posts one strict JSON object at a time to `https://sola
 | `finish(arenaSession)` | Release Browser and return transcript plus `solari.arena.remote-practice-run.v1`. |
 | `disconnect(arenaSession)` | Release without issuing a practice result. |
 
-The endpoint accepts ordinary JSON over HTTPS, so a coding agent can use its existing shell or HTTP capability. It does not install anything in the model host. The ticket and session are temporary encrypted bearer capabilities, not Solari credentials, and the prompt tells the agent not to repeat them in its final response.
+The endpoint accepts ordinary JSON over HTTPS, so a coding agent can use its existing shell or HTTP capability. It does not install anything in the model host. The ticket and session are temporary encrypted bearer capabilities, not Solari credentials. The copied prompt stores the exact session token with owner-only file permissions, reads it programmatically for every action, removes it after finish/disconnect, and tells the agent never to repeat it in its final response.
 
 ### Hosted remote MCP: optional compatibility path
 
@@ -265,7 +265,7 @@ npx vercel env add SOLARI_REMOTE_ALLOWED_HOSTS production
 npx vercel deploy --prod
 ```
 
-Install Upstash Redis and QStash through the Vercel Marketplace so their server-only variables are injected into the project. Redis credentials may arrive as `UPSTASH_REDIS_REST_*` or Vercel's equivalent `KV_REST_API_*` aliases; the server accepts either pair. Then run `npm run remote:setup-sweeper` once with those credentials. That setup command creates the idempotently named schedule, reads its destination/body/cron/active state back from QStash, and records the initial Redis heartbeat. Each real signed sweep refreshes that heartbeat; ticket minting stops if it becomes more than ten minutes old. Keep both `SOLARI_EVALUATION_ENABLED=false` and `SOLARI_REMOTE_ENABLED=false` until the Redis atomic-admission test, per-session cleanup test, recurring-sweep test, managed-challenge rollout, and live release probe pass. Checked-in authoritative replays stay public. Paid isolated evaluation remains separately token-gated and disabled.
+Install Upstash Redis and QStash through the Vercel Marketplace so their server-only variables are injected into the project. Redis credentials may arrive as `UPSTASH_REDIS_REST_*` or Vercel's equivalent `KV_REST_API_*` aliases; the server accepts either pair. Then run `npm run remote:setup-sweeper` once with those credentials. That setup command creates the idempotently named schedule, reads its destination/body/cron/active state back from QStash, and records the initial Redis heartbeat. Each real signed sweep refreshes that heartbeat; ticket minting stops if it becomes more than ten minutes old. Keep both flags false until the Redis atomic-admission test, per-session cleanup test, recurring-sweep test, WAF observation/rate-limit rollout, and live release probe pass. Those gates have passed for the public production deployment, where `SOLARI_REMOTE_ENABLED=true`; the checked-in/local default remains false. `SOLARI_EVALUATION_ENABLED=false` remains the public-production policy, and checked-in authoritative replays stay public.
 
 Conservative public defaults are two concurrent sessions globally, one per holder and IP, two sessions per holder/IP per UTC day, and twenty sessions globally per UTC day. All are server-side environment variables. Redis failure, stale sweep heartbeat, QStash scheduling failure, cleanup failure, or configuration drift prevents a public ticket. Failed cleanup is moved behind later due leases with bounded backoff; stale global/IP indexes are pruned using a separate lease-to-IP mapping. A provider-create outcome that cannot be confirmed retains its charged capacity rather than pretending no work exists. `SOLARI_REMOTE_ENABLED` remains the emergency kill switch.
 

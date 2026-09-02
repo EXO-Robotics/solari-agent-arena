@@ -66,6 +66,6 @@ export function remoteHttpError(error) {
     "Arena pairing ticket was already redeemed or revoked.", "Arena session was released or expired.",
   ].includes(message)) return { status: 401, error: message };
   if (message === "Arena command already in progress.") return { status: 409, error: message };
-  if (message.includes("expectedSequence") || message.includes("outside the course limits") || message.includes("durationMs")) return { status: 409, error: message };
+  if (message.includes("expectedSequence") || message.startsWith("Expected action sequence ") || message.includes("outside the course limits") || message.includes("durationMs")) return { status: 409, error: message };
   return { status: 502, error: message };
 }
