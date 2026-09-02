@@ -1,8 +1,11 @@
 import { expirePracticeLease, reapDuePracticeLeases } from "../server/lib/remote-expiry.mjs";
 import { EXPIRY_SCHEMA_VERSION, expiryEndpointUrl, verifyExpiryRequest } from "../server/lib/remote-expiry-scheduler.mjs";
-import { sendJson } from "../server/lib/http-guards.mjs";
+import { sendJson, validateRemoteRequestBoundary } from "../server/lib/http-guards.mjs";
 import { DEFAULT_ARENA_URL } from "../server/lib/arena-url.mjs";
-import { recordAdmissionSweepHeartbeat } from "../server/lib/remote-admission.mjs";
+import { recordAdmissionSweepHeartbeat, remoteUsageStatus, resetDailyUsage } from "../server/lib/remote-admission.mjs";
+import {
+  authorizeOwnerUsageReset, executeOwnerUsageReset, hasBearerAuthorization, ownerUsageResetToken, validateOwnerUsageReset,
+} from "../server/lib/owner-usage-reset.mjs";
 
 const MAX_BODY_BYTES = 1_024;
 
@@ -36,6 +39,21 @@ export default async function handler(request, response) {
   let text;
   try { text = await rawBody(request); }
   catch { return sendJson(response, 413, { error: "Invalid cleanup request." }); }
+  const authorization = header(request, "authorization");
+  if (hasBearerAuthorization(authorization)) {
+    const rejected = validateRemoteRequestBoundary(request);
+    if (rejected) return sendJson(response, rejected.status, { error: rejected.error });
+    const ownerToken = ownerUsageResetToken();
+    if (!authorizeOwnerUsageReset(authorization, ownerToken)) return sendJson(response, 401, { error: "Invalid owner authorization." });
+    let input;
+    try { input = validateOwnerUsageReset(JSON.parse(text)); }
+    catch { return sendJson(response, 400, { error: "Invalid owner reset request." }); }
+    try {
+      return sendJson(response, 200, await executeOwnerUsageReset(input, { remoteUsageStatus, resetDailyUsage }));
+    } catch {
+      return sendJson(response, 503, { error: "Usage reset outcome could not be confirmed. Active leases were not targeted." });
+    }
+  }
   const signature = header(request, "upstash-signature");
   const region = header(request, "upstash-region");
   const target = expiryEndpointUrl(process.env.ARENA_URL ?? DEFAULT_ARENA_URL);
