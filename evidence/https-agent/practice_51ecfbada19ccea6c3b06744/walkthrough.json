@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "solari.arena.live-walkthrough.v1",
+  "testedAt": "2026-09-02T15:18:15.536Z",
+  "liveUrl": "https://solari-agent-arena.vercel.app",
+  "commit": "7764793",
+  "tester": {
+    "model": "gpt-5.6-luna",
+    "environment": "fresh projectless temporary directory",
+    "setup": "Safari course click, copy prompt, paste as first message",
+    "localMcpInstalled": false,
+    "repositoryAvailable": false
+  },
+  "handoff": {
+    "pairing": "short one-time server-resolved run code",
+    "longPairingCapabilityExposedToAgent": false,
+    "sessionCapabilityStorage": "permission-restricted temporary file removed after finish"
+  },
+  "result": {
+    "runId": "practice_51ecfbada19ccea6c3b06744",
+    "phase": "complete",
+    "checkpoints": {
+      "reached": 3,
+      "total": 3,
+      "nextId": null
+    },
+    "simulatedTimeSeconds": 11.720000000000583,
+    "collisions": 0,
+    "actions": 8,
+    "transcriptHash": "9076f4f1a89a14d87919231070923f4cd0b0f9a09ae8196a31cd47573ac68489",
+    "screenshotHash": "90393213f48e9bac58f314f615bc5d785573e3ce3a021d75d5852e689221eec9",
+    "replayHash": null,
+    "resultHash": "c99bfd944c444646a669fa40a59de5ad89e35dcc418d0b8e54ca43f4e7adf74e",
+    "releaseAccepted": true,
+    "authoritative": false
+  },
+  "notes": [
+    "Public Solari Browser practice is deliberately non-authoritative.",
+    "The final receipt did not include a downloadable Browser replay, so replayHash is null and no replay claim is made."
+  ]
+}

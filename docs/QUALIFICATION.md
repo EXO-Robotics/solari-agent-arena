@@ -57,7 +57,13 @@ The local-model stdio MCP bridge was independently re-exercised against producti
 - [`MCP receipt.json`](../evidence/mcp/9b700e6322ef76d8/receipt.json)
 - [`MCP final.png`](../evidence/mcp/9b700e6322ef76d8/final.png)
 
-The deployed root now opens on the streamlined course-first onboarding surface. A production page-level browser inspection against commit `419877e966432c3c5722fdbd8c45d77e91844a59` confirmed the official/practice authority labels and the one-click course controls without exposing creator/import or trust-boundary controls to a first-time visitor. Choosing a course closes the picker, loads the neon route, and leaves the selected world at `READY`; the adjacent `COPY AGENT PROMPT` action remains deliberately disabled while public remote admission is dark. Retained visual proof: [`course-first-onboarding.png`](../evidence/ux/course-first-onboarding.png).
+The deployed root opens on the streamlined course-first onboarding surface. A production page-level browser inspection against commit `419877e966432c3c5722fdbd8c45d77e91844a59` confirmed the official/practice authority labels and one-click course controls without exposing creator/import or trust-boundary controls to a first-time visitor. Retained visual proof of that prelaunch surface: [`course-first-onboarding.png`](../evidence/ux/course-first-onboarding.png).
+
+Public remote practice was then enabled only after Redis/QStash admission and cleanup qualification plus the exact `/api/arena-ticket` WAF observation/rate-limit rule were live; public isolated evaluation remained disabled. Against deployed commit `7764793`, Safari selected First Steps and copied a prompt containing a short one-time run code but no long pairing capability. A fresh projectless `gpt-5.6-luna` task with no repository or MCP completed 3/3 checkpoints in 8 actions, 11.72 simulated seconds, and zero collisions. Browser deletion was accepted, the permission-restricted session file was removed, and the Redis active-lease index returned zero. The receipt is explicitly non-authoritative and has `replayHash: null`, so no practice-replay claim is made. Retained proof:
+
+- [`walkthrough.json`](../evidence/https-agent/practice_51ecfbada19ccea6c3b06744/walkthrough.json)
+- [`receipt.json`](../evidence/https-agent/practice_51ecfbada19ccea6c3b06744/receipt.json)
+- [`final.png`](../evidence/https-agent/practice_51ecfbada19ccea6c3b06744/final.png)
 
 ## Codex connection milestone
 

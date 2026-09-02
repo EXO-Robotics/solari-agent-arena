@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "solari.arena.remote-practice-run.v1",
+  "runId": "practice_51ecfbada19ccea6c3b06744",
+  "authoritative": false,
+  "authorityClass": "public-practice",
+  "execution": {
+    "provider": "solari",
+    "product": "browser",
+    "sdkVersion": "0.1.2",
+    "sessionIdHash": "f510254d2b936c82f6ea0b124e24cfe6b560d9b608f371c94f56cb7ef62ccf00"
+  },
+  "ticketJtiHash": "4543e35052f8dd24a748ed80552f7da09924be21e578a9b23f40171a11d7b737",
+  "courseId": "practice-first-steps-v1",
+  "courseHash": "96027bdf89d0e33252c2eebe93e901ff0d602e4dce99634f62cb7e197b9f83fb",
+  "seed": 42,
+  "track": "state-v1",
+  "outcome": {
+    "phase": "complete",
+    "checkpoints": {
+      "reached": 3,
+      "total": 3,
+      "nextId": null
+    },
+    "collisions": 0,
+    "simulatedTimeSeconds": 11.720000000000583
+  },
+  "transcript": {
+    "schemaVersion": "solari.arena.agent-transcript.v1",
+    "courseId": "practice-first-steps-v1",
+    "seed": 42,
+    "actions": [
+      {
+        "sequence": 0,
+        "drive": 1.2,
+        "turn": 0,
+        "durationMs": 1500
+      },
+      {
+        "sequence": 1,
+        "drive": 1.2,
+        "turn": 0,
+        "durationMs": 1500
+      },
+      {
+        "sequence": 2,
+        "drive": 1.2,
+        "turn": 0.8,
+        "durationMs": 1200
+      },
+      {
+        "sequence": 3,
+        "drive": 1.2,
+        "turn": -0.35,
+        "durationMs": 1000
+      },
+      {
+        "sequence": 4,
+        "drive": 1.2,
+        "turn": 0,
+        "durationMs": 2000
+      },
+      {
+        "sequence": 5,
+        "drive": 1.2,
+        "turn": -0.8,
+        "durationMs": 1200
+      },
+      {
+        "sequence": 6,
+        "drive": 1.2,
+        "turn": 0,
+        "durationMs": 2000
+      },
+      {
+        "sequence": 7,
+        "drive": 1.2,
+        "turn": -0.2,
+        "durationMs": 2000
+      }
+    ]
+  },
+  "transcriptHash": "9076f4f1a89a14d87919231070923f4cd0b0f9a09ae8196a31cd47573ac68489",
+  "screenshotHash": "90393213f48e9bac58f314f615bc5d785573e3ce3a021d75d5852e689221eec9",
+  "replayHash": null,
+  "releaseAccepted": true,
+  "completedAt": "2026-09-02T15:18:15.536Z",
+  "resultHash": "c99bfd944c444646a669fa40a59de5ad89e35dcc418d0b8e54ca43f4e7adf74e"
+}

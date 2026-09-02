@@ -11,8 +11,8 @@ flowchart TB
   end
   subgraph Browser[Non-authoritative browser trial]
     W[WebMCP site tools]
-    H[Zero-install HTTPS prompt<br/>encrypted per-call capability]
-    M[Optional remote MCP<br/>same capability]
+    H[Zero-install HTTPS prompt<br/>short one-time run code]
+    M[Optional remote MCP<br/>same run code]
     LM[Local stdio MCP bridge]
     U[Accessible UI / window API]
     O[Reset / observe / bounded act]
@@ -60,7 +60,7 @@ The external agent may be local, remote, benign, broken, or adversarial. This su
 | Path | Purpose | Authority |
 |---|---|---|
 | Local Preview | Fast generated-controller iteration through the original Worker/watchdog | Non-isolated and non-authoritative |
-| Hosted Agent Practice | One copied system prompt controlling a recording Solari Browser through strict HTTPS operations and a short-lived encrypted capability; MCP remains optional | Provider-isolated from the user's machine, but non-authoritative because the page owns simulation state |
+| Hosted Agent Practice | One copied system prompt controlling a recording Solari Browser through strict HTTPS operations and a short one-time run code; MCP remains optional | Provider-isolated from the user's machine, but non-authoritative because the page owns simulation state |
 | Agent Tool Trial | Visual observe/act loop, zero-cost thinking, exact transcript capture | Non-authoritative; page/client can be manipulated |
 | Agent Isolated Score | Validate and replay the action transcript in fixed-step MuJoCo in a fresh Sandbox | Authoritative for transcript replay and scoring only |
 | Controller Isolated Evaluation | Run submitted controller source in QuickJS plus MuJoCo in a fresh Sandbox | Authoritative for the controller-source run |
@@ -78,7 +78,7 @@ The browser course library has three states:
 
 Local imports are checkpoint-route manifests, not arbitrary MuJoCo or JavaScript uploads. They are size/range/count validated in the browser and never reach the authoritative evaluator. A future community registry needs immutable course IDs/versions, moderation, bounded geometry, server-side validation, and a course hash in the authority bundle before uploaded level designs can produce comparable scores.
 
-For the primary HTTPS path, Safari passes the allow-listed `courseId`, seed, and track to the server before it copies anything. The server creates a normalized same-origin `?agent=1&course=...` URL, verifies the loaded manifest and initial observation, and seals that binding into the prompt's ticket. The agent must match the first observation before acting. Local imports are not silently substituted because their manifests exist only in the importing tab. The optional stdio MCP path keeps its explicit `arena_open.courseId` binding.
+For the primary HTTPS path, Safari passes the allow-listed `courseId`, seed, and track to the server before it copies anything. The server creates a normalized same-origin `?agent=1&course=...` URL, verifies the loaded manifest and initial observation, seals that binding into a server-side pairing capability, and stores it under an HMAC-derived Redis key. The copied prompt receives only a 24-character one-time `run_…` reference. The agent must match the first observation before acting. Local imports are not silently substituted because their manifests exist only in the importing tab. The optional stdio MCP path keeps its explicit `arena_open.courseId` binding.
 
 ## Boundary inventory
 
@@ -87,7 +87,7 @@ For the primary HTTPS path, Safari passes the allow-listed `courseId`, seed, and
 | Browser Worker | UI responsiveness and termination of a slow controller step | Origin isolation, compile timeout, authority, deterministic scheduling |
 | WebMCP / window API / accessible buttons | A narrow shared robot-control interface | Trustworthiness of the agent or browser state |
 | Hosted admission lease | Atomic holder/IP/global daily and concurrency limits; one-time pairing; active revocation; raw IPs are HMAC-hashed | Human identity, Sybil-proofing, or scoring authority |
-| Hosted HTTP/MCP capability | Course/seed/track/lease binding; hides Solari session ID/CDP endpoint; expires quickly; transport remains stateless | Human identity or scoring authority |
+| Hosted HTTP/MCP handoff | One-time run-code redemption plus an encrypted course/seed/track/lease-bound session; hides the sealed pairing capability, Solari session ID, and CDP endpoint; transport remains stateless | Human identity or scoring authority |
 | Signed cleanup delivery | Requests unclaimed release at five minutes and hard release at twenty; an exact read-back-verified five-minute sweep refreshes a fail-closed heartbeat and retries due leases; retries are idempotent | Zero-delay guarantees during a provider-wide outage, proof of agent authorship, or scoring authority |
 | Agent transcript validation | Canonical sequence, bounded finite actions, course/seed/time/action limits | That the browser trial was honest or that a particular model produced it |
 | Vercel API | Server-only credential handling, admission, request bounds, artifact finalization | Untrusted-code isolation by itself |

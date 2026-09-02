@@ -26,7 +26,7 @@ No repository clone, MCP installation, local Node process, browser attachment, o
 1. Choose a built-in course; the public handoff uses exact state telemetry so the agent can begin immediately.
 2. Click **COPY AGENT PROMPT**, then paste that complete system prompt into any coding agent with shell or ordinary HTTPS access.
 
-The server launches one recording Solari Browser, loads the exact course and seed, verifies the manifest, and gives the page a five-minute encrypted pairing capability. The prompt embeds that temporary capability plus one versioned HTTPS endpoint and the complete `connect → observe / act → finish` contract. On connect, it writes the returned session capability to a permission-restricted, run-specific temporary file and makes every later command read it through a JSON parser; the model never has to transcribe the bearer token. The public flow exposes exact pose/heading/speed without an image; the lower-level contract retains a restricted Vision track for dedicated verifiers. The simulation clock is frozen while the model looks or thinks.
+The server launches one recording Solari Browser, loads the exact course and seed, and verifies the manifest. It stores the sealed five-minute pairing capability under an HMAC-derived Redis key and gives the page only a 24-character one-time `run_…` code. The prompt embeds that short code, one versioned HTTPS endpoint, and the complete `connect → observe / act → finish` contract; it never exposes Solari credentials or the long pairing capability. On connect, it writes the returned encrypted session capability to a permission-restricted, run-specific temporary file and makes every later command read it through a JSON parser, so the model never has to transcribe it. The public flow exposes exact pose/heading/speed without an image; the lower-level contract retains a restricted Vision track for dedicated verifiers. The simulation clock is frozen while the model looks or thinks.
 
 A text-only chat with no shell, browser, HTTP, or tool capability cannot control an external benchmark; the prompt reports `ARENA_HTTP_UNAVAILABLE` instead of pretending otherwise.
 
@@ -60,7 +60,7 @@ flowchart LR
   API -->|create + record| SB[Solari Browser]
   API -->|signed delayed cleanup| Q[Upstash QStash]
   Q -->|5 min unclaimed<br/>20 min deadline + 5 min sweep| API
-  UI -->|self-contained system prompt<br/>short-lived opaque ticket| A[Codex / local model / agent]
+  UI -->|self-contained system prompt<br/>short one-time run code| A[Codex / local model / agent]
   A -->|POST /api/arena-command<br/>5 strict operations| API
   API -->|CDP reconnect per call| SB
   SB --> BT[Browser Agent Tool Trial]
@@ -80,7 +80,7 @@ flowchart LR
   VR[Solari Browser release verifier] -->|DOM + hashes + replay completion| RP
 ```
 
-The paid-session mint is fail-closed: a recently delivered signed recovery sweep must be recorded, Redis atomically reserves daily and active capacity before the Solari request, and browser initialization plus both cleanup deliveries must be accepted before the prompt receives a ticket. A failure before provider creation unwinds the pending reservation. Once a provider request starts, its daily counter remains charged; capacity is cleared only after deletion is confirmed or a conservative two-hour uncertain-provider window has elapsed. This prevents a lost create response from becoming an unmetered mint loop.
+The paid-session mint is fail-closed: a recently delivered signed recovery sweep must be recorded, Redis atomically reserves daily and active capacity before the Solari request, and browser initialization plus both cleanup deliveries must be accepted before the prompt receives a run code. A failure before provider creation unwinds the pending reservation. Once a provider request starts, its daily counter remains charged; capacity is cleared only after deletion is confirmed or a conservative two-hour uncertain-provider window has elapsed. This prevents a lost create response from becoming an unmetered mint loop.
 
 Vercel does not hold Arena state in an API object or module global. Each HTTP or MCP call carries an encrypted, short-lived `arenaSession`; the provider session ID and raw CDP endpoint remain inside that ciphertext and are never returned separately. The transport is stateless and reconnects with Puppeteer, then disconnects without closing the Browser. The trust claim remains narrow: **the external model and remote browser trial are outside the authoritative boundary**.
 
@@ -92,13 +92,13 @@ The copied system prompt posts one strict JSON object at a time to `https://sola
 
 | Operation | Effect |
 |---|---|
-| `connect(ticket)` | Verify the short-lived course/seed/track-bound ticket and return an opaque `arenaSession` plus the first observation. |
+| `connect(runCode)` | Resolve and consume the short one-time course/seed/track-bound run code, then return an opaque `arenaSession` plus the first observation. |
 | `observe(arenaSession)` | Return the State or Vision observation without advancing simulated time. |
 | `act(arenaSession, expectedSequence, drive, turn, durationMs)` | Apply one sequence-checked bounded action and return its resulting observation. |
 | `finish(arenaSession)` | Release Browser and return transcript plus `solari.arena.remote-practice-run.v1`. |
 | `disconnect(arenaSession)` | Release without issuing a practice result. |
 
-The endpoint accepts ordinary JSON over HTTPS, so a coding agent can use its existing shell or HTTP capability. It does not install anything in the model host. The ticket and session are temporary encrypted bearer capabilities, not Solari credentials. The copied prompt stores the exact session token with owner-only file permissions, reads it programmatically for every action, removes it after finish/disconnect, and tells the agent never to repeat it in its final response.
+The endpoint accepts ordinary JSON over HTTPS, so a coding agent can use its existing shell or HTTP capability. It does not install anything in the model host. The `run_…` value is a temporary random bearer reference, while `arenaSession` is an encrypted bearer capability; neither is a Solari credential. Redis never stores the raw run code in a key, the mapping expires after five minutes, and successful connect consumes it. The copied prompt stores the exact session token with owner-only file permissions, reads it programmatically for every action, removes it after finish/disconnect, and tells the agent never to repeat it in its final response.
 
 ### Hosted remote MCP: optional compatibility path
 
@@ -106,13 +106,13 @@ Add `https://solari-agent-arena.vercel.app/mcp` to an MCP-capable host. The serv
 
 | Tool | Effect |
 |---|---|
-| `arena_connect(ticket)` | Verify a short-lived course/seed/track-bound pairing ticket and return an opaque `arenaSession` plus the first observation. |
+| `arena_connect(runCode)` | Resolve and consume a short one-time course/seed/track-bound run code, then return an opaque `arenaSession` plus the first observation. |
 | `arena_observe(arenaSession)` | Return the State or Vision observation without advancing simulated time. |
 | `arena_act(arenaSession, expectedSequence, drive, turn, durationMs)` | Apply one sequence-checked bounded action and return its resulting observation. |
 | `arena_finish(arenaSession)` | Release Browser and return transcript plus `solari.arena.remote-practice-run.v1`. |
 | `arena_disconnect(arenaSession)` | Release without issuing a practice result. |
 
-The same encrypted capability and Browser runtime back HTTPS and MCP. A Redis-backed lease makes the pairing token one-time, admits one active session per anonymous holder, and caps holder/IP/global daily usage plus global concurrency atomically before Solari Browser creation. The session capability cannot extend beyond twenty minutes from browser creation or the shorter provider deadline. Signed QStash deliveries request release after five minutes when unclaimed and at the twenty-minute deadline; a separately configured five-minute signed sweep retries due leases if an individual delivery was not accepted. Explicit finish/disconnect releases earlier. Provider deletion must succeed before the normal active lease is cleared.
+The same server-side sealed pairing capability and Browser runtime back HTTPS and MCP; the public handoff exposes only its short run-code reference. A Redis-backed lease makes redemption one-time, admits one active session per anonymous holder, and caps holder/IP/global daily usage plus global concurrency atomically before Solari Browser creation. The session capability cannot extend beyond twenty minutes from browser creation or the shorter provider deadline. Signed QStash deliveries request release after five minutes when unclaimed and at the twenty-minute deadline; a separately configured five-minute signed sweep retries due leases if an individual delivery was not accepted. Explicit finish/disconnect releases earlier. Provider deletion must succeed before the normal active lease is cleared.
 
 The public cookie is a signed, `HttpOnly`, `Secure`, `SameSite=Lax` anonymous identifier—not an identity claim. IP subjects are HMAC-hashed before storage, and no raw IP, CDP endpoint, Solari key, or cleanup credential is written to Redis. Clearing cookies cannot escape the IP and global ceilings. The Vercel firewall remains defense-in-depth; the atomic application budget is the cost boundary.
 
@@ -183,7 +183,7 @@ Both contracts are unsigned integrity artifacts, not remote attestation. `sandbo
 
 | Claim | Proof | Boundary |
 |---|---|---|
-| Copied prompt works in a fresh agent with no setup | Fresh Luna received the Safari-copied First Steps prompt with no repository context or MCP, used ordinary HTTPS, and completed 3/3 in 9 actions / 9.81 simulated seconds / 0 collisions with confirmed release | Zero-install Browser practice transport, non-authoritative |
+| Copied prompt works in a fresh agent with no setup | [Fresh Luna](evidence/https-agent/practice_51ecfbada19ccea6c3b06744/walkthrough.json) received the Safari-copied First Steps prompt with no repository context or MCP, redeemed only a short run code, and completed 3/3 in 8 actions / 11.72 simulated seconds / 0 collisions with confirmed release | Zero-install Browser practice transport, non-authoritative; `replayHash` was unavailable and no replay claim is made |
 | Browser thinking costs zero simulated time | Browser E2E observes time 0, waits 750 ms wall time, observes time 0 | Browser behavior, not authority |
 | Local-model MCP bridge works against production | Real stdio MCP handshake lists seven tools, proves reset plus zero-cost observation and exact 800 ms action, completes the 21-action 5/5 course, then retains a hash-bound screenshot/rrweb receipt | Tool transport and presentation, not scoring authority |
 | Agent course can be completed | Valid transcript: 5/5, 21 actions, 26.124 s, 0 collisions | Local deterministic runner + live Sandbox |
