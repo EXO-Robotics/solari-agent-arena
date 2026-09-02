@@ -126,10 +126,37 @@ Sanitized Grok session `01a05f0c-fe0f-7b23-ae4f-1a561b71e415` reviewed tracked p
 - Accepted: after a committed ticket, simultaneous QStash scheduling failure and unconfirmed provider release left the recurring sweep index at the twenty-minute hard deadline. The lease remained charged and bounded, but the advertised five-minute unclaimed recovery was not independently guaranteed. Commit-time indexing now uses `pairingExpiresAt`; the one-time atomic redeem transition advances both global and per-IP indexes to `hardExpiresAt`. Targeted admission/expiry tests cover the lifecycle deadline transition.
 - Rejected as a duplicate incorrect finding: `finishPractice()` does not construct a receipt from undefined browser state. JavaScript propagates the read error after its `finally` release attempt; `/api/arena-command` catches it, sanitizes infrastructure details, and returns HTTP 502. Capacity is cleared only when provider release is accepted. This is the same finding rejected with code evidence in the Hosted remote MCP review above.
 
-A fresh final Grok review is still required after the WAF gate is active and the cold anonymous public run is retained. This prelaunch pass is remediation input, not release approval.
+At this prelaunch milestone, a fresh final Grok review was still required after the WAF gate became active and the cold anonymous public run was retained. This prelaunch pass was remediation input, not release approval; the final loop below completed that gate.
 
 ## Zero-install HTTPS live walkthrough
 
 A fresh `gpt-5.6-luna` tester received only the exact system prompt copied from the production Safari course picker at deployed commit `7764793`. It ran in a projectless temporary directory with no repository and no Arena/MCP integration. The prompt exposed only a short one-time server-resolved run code, not the long sealed pairing capability. Using ordinary HTTPS, Luna completed `practice-first-steps-v1` at seed 42 with 3/3 checkpoints, 8 actions, 11.72 simulated seconds, zero collisions, and `releaseAccepted=true`.
 
 The retained [`walkthrough`](../evidence/https-agent/practice_51ecfbada19ccea6c3b06744/walkthrough.json), [`receipt`](../evidence/https-agent/practice_51ecfbada19ccea6c3b06744/receipt.json), and [`final frame`](../evidence/https-agent/practice_51ecfbada19ccea6c3b06744/final.png) prove the zero-install handoff and recorded Browser practice loop, not authoritative Sandbox qualification. The screenshot hash was independently recomputed, the permission-restricted session file was removed, and the Redis active-lease index returned zero after release. The Solari Browser API did not return a downloadable replay for this run (`replayHash: null`), so no practice-replay claim is made. Public practice remains on with safeguards; `SOLARI_EVALUATION_ENABLED=false` was retained and probed fail-closed.
+
+## Final public-release review loop
+
+Fresh delta-review session `01a062c9-e3c4-7650-8a89-0086c3478a93` reviewed the complete tracked change from the prelaunch-reviewed commit through deployed commit `c368add2932c8ec5c0c561a49276b2dd97cab19e`. It accepted that the prior five-minute recovery Medium was closed: commit indexes pairing leases at `pairingExpiresAt`, while the atomic redeem transition advances both global and per-IP indexes to `hardExpiresAt`. It rejected the repeated `finishPractice()` undefined-state claim because the read failure still propagates after `finally`.
+
+That review returned `RELEASE`, strong confidence, and zero Critical/High/Medium findings, but found two legitimate Lows:
+
+- Accepted: successful admission redeemed the lease atomically but deleted the short-code mapping in a separate swallowed best-effort operation. Remediation commit `d3201d5` moved compare-and-delete into the same Redis Lua transaction that verifies the mapping and activates the lease.
+- Accepted: the walkthrough used a short `7764793` commit field that could be confused with the later evidence-publication commit. The evidence now records full, separate `testedRuntimeCommit` and `evidenceFirstPublishedCommit` fields without claiming that the walkthrough was rerun on the remediation commit.
+
+After the two fixes, 29/29 targeted admission/API tests, the full 127/127 suite, the production build, and diff hygiene passed. Production was redeployed and reprobed: root 200, remote-practice status 200/enabled, and both isolated-evaluation APIs 503/paused.
+
+Fresh independent remediation-review session `01a062d4-50d8-7f31-988f-369042d73dcd` inspected the exact `c368add…d3201d5` tracked diff. It specifically rejected the following proposed regressions:
+
+- no new redemption race: mapping verification, lease activation, deadline reindexing, and mapping deletion share one Redis `EVAL`;
+- no compatibility break: the changed function is internal and the public HTTP/MCP contract is unchanged;
+- no secret exposure: the sealed ticket was already a Redis value, remains server-side, and never enters the copied prompt;
+- no weakened cleanup: pairing TTL, five-minute index, hard-deadline index, and close/cancel/abandon flows are unchanged;
+- no requirement to mislabel the old live run as rerun on `d3201d5`: the corrected evidence preserves the tested-runtime lineage honestly.
+
+Final result:
+
+- Critical: 0; High: 0; Medium: 0; Low: 0.
+- Score: **9.8/10; effectively 10/10**.
+- Confidence in architecture and claim honesty: strong.
+- Solari is load-bearing and materially improves Robot-3D-Sim: yes.
+- **`RELEASE`.**
