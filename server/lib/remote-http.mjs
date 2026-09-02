@@ -18,7 +18,7 @@ function exactKeys(value, expected) {
 }
 
 function capability(value) {
-  return typeof value === "string" && value.length >= 40 && value.length <= 8_192;
+  return typeof value === "string" && value.length >= 20 && value.length <= 8_192;
 }
 
 export function validateRemoteHttpCommand(value) {

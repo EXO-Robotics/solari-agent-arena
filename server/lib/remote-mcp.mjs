@@ -29,7 +29,7 @@ export function buildRemoteMcpServer() {
   server.registerTool("arena_connect", {
     title: "Connect to recorded Arena practice",
     description: "Redeem a short-lived course-bound pairing ticket and return an opaque Arena session plus the first observation.",
-    inputSchema: z.strictObject({ ticket: z.string().min(40).max(8_192) }),
+    inputSchema: z.strictObject({ ticket: z.string().min(20).max(8_192) }),
   }, safe(({ ticket }) => connectPractice(ticket)));
   server.registerTool("arena_observe", {
     title: "Observe the Arena",

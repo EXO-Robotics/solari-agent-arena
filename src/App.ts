@@ -1074,18 +1074,18 @@ export class App {
         body: JSON.stringify({ courseId: this.activeCourse.course.courseId, seed, track: this.remoteTrack }),
       });
       const text = await response.text();
-      let body: { pairingTicket?: string; expiresAt?: string; error?: string };
+      let body: { pairingCode?: string; expiresAt?: string; error?: string };
       try { body = JSON.parse(text) as typeof body; }
       catch { throw new Error("Hosted Agent Practice requires the deployed app or `vercel dev`; Vite serves the browser UI only."); }
-      if (!response.ok || !body.pairingTicket || !body.expiresAt) throw new Error(body.error ?? "Hosted Agent Practice did not issue a ticket.");
+      if (!response.ok || !body.pairingCode || !body.expiresAt) throw new Error(body.error ?? "Hosted Agent Practice did not issue a run code.");
       const expiresAt = Date.parse(body.expiresAt);
-      this.remotePairing = { ticket: body.pairingTicket, expiresAt, courseId: this.activeCourse.course.courseId, seed, track: this.remoteTrack };
+      this.remotePairing = { ticket: body.pairingCode, expiresAt, courseId: this.activeCourse.course.courseId, seed, track: this.remoteTrack };
       copy.textContent = "RUN READY · COPYING PROMPT…";
       copy.disabled = false;
       this.requireElement("#remote-connect-status").textContent = `Run reserved until ${new Date(expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}. Copying its complete system prompt…`;
       window.setTimeout(() => {
         const pairing = this.remotePairing;
-        if (pairing && pairing.ticket === body.pairingTicket && pairing.expiresAt <= Date.now()) {
+        if (pairing && pairing.ticket === body.pairingCode && pairing.expiresAt <= Date.now()) {
           this.remotePairing = null;
           this.renderRemoteTrack();
         }

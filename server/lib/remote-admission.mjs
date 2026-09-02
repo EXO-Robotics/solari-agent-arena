@@ -224,6 +224,11 @@ if redis.call("GET", KEYS[1]) ~= ARGV[1] then return 0 end
 return redis.call("DEL", KEYS[1])
 `;
 
+const CONSUME_PAIRING_CODE_SCRIPT = `-- saa.consume-pairing-code.v1
+if redis.call("GET", KEYS[1]) ~= ARGV[1] then return 0 end
+return redis.call("DEL", KEYS[1])
+`;
+
 let redisClient;
 
 function redisCredentials() {
@@ -262,6 +267,11 @@ function secret() {
 
 function hmac(label, value) {
   return createHmac("sha256", secret()).update(`${label}:${value}`).digest("hex");
+}
+
+function pairingCodeKey(code) {
+  if (!/^run_[A-Za-z0-9_-]{24}$/.test(code)) throw new Error("Invalid Arena capability.");
+  return `${prefix()}:pairing-code:${hmac("pairing-code", code)}`;
 }
 
 function safeEqual(left, right) {
@@ -412,6 +422,24 @@ export async function redeemAdmission(leaseId, sessionId, ticketJtiHash, redis =
   return true;
 }
 
+export async function storePairingCode(code, pairingTicket, expiresAt, redis = redisFromEnv(), nowMs = Date.now()) {
+  if (typeof pairingTicket !== "string" || !pairingTicket.startsWith("saa1.")) throw new Error("Invalid Arena capability.");
+  const ttl = Math.max(1, Math.ceil((expiresAt - nowMs) / 1_000));
+  const stored = await redis.set(pairingCodeKey(code), pairingTicket, { nx: true, ex: ttl });
+  if (stored !== "OK") throw new Error("Hosted Agent Practice admission is not configured.");
+  return true;
+}
+
+export async function resolvePairingCode(code, redis = redisFromEnv()) {
+  const pairingTicket = await redis.get(pairingCodeKey(code));
+  if (typeof pairingTicket !== "string" || !pairingTicket.startsWith("saa1.")) throw new Error("Invalid Arena capability.");
+  return pairingTicket;
+}
+
+export async function consumePairingCode(code, pairingTicket, redis = redisFromEnv()) {
+  return Number(await redis.eval(CONSUME_PAIRING_CODE_SCRIPT, [pairingCodeKey(code)], [pairingTicket])) === 1;
+}
+
 export async function requireActiveAdmission(leaseId, sessionId, redis = redisFromEnv(), nowMs = Date.now()) {
   const sessionIdHash = hmac("session-hash", sessionId);
   const lease = await redis.hgetall(keys(leaseId, "unused").lease);
@@ -522,5 +550,5 @@ export async function remoteUsageStatus(redis = redisFromEnv(), nowMs = Date.now
 export const __test = Object.freeze({
   COOKIE_NAME, RESERVE_SCRIPT, MARK_CREATING_SCRIPT, COMMIT_SCRIPT, BIND_ORPHAN_SCRIPT, CANCEL_PENDING_SCRIPT,
   REDEEM_SCRIPT, CLOSE_SCRIPT, ABANDON_SCRIPT, DUE_SCRIPT, RESET_SCRIPT, RELEASE_LOCK_SCRIPT,
-  DEFER_OR_PRUNE_SCRIPT, SWEEP_HEARTBEAT_MAX_AGE_SECONDS,
+  DEFER_OR_PRUNE_SCRIPT, CONSUME_PAIRING_CODE_SCRIPT, SWEEP_HEARTBEAT_MAX_AGE_SECONDS,
 });

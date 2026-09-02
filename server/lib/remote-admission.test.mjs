@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   AdmissionError, __test, acquireCleanupLock, acquireCommandLock, anonymousHolder, assertAdmissionSweepHeartbeat,
-  clientIpHash, recordAdmissionSweepHeartbeat, redeemAdmission, releaseCommandLock, remoteAdmissionConfigured, reserveAdmission, resetDailyUsage,
+  clientIpHash, consumePairingCode, recordAdmissionSweepHeartbeat, redeemAdmission, releaseCommandLock, remoteAdmissionConfigured,
+  reserveAdmission, resetDailyUsage, resolvePairingCode, storePairingCode,
 } from "./remote-admission.mjs";
 import { ensureAdmissionSweep, scheduleAdmissionExpiry } from "./remote-expiry-scheduler.mjs";
 
@@ -130,6 +131,25 @@ describe("remote public admission", () => {
     expect(calls[0].keys).toHaveLength(2);
     expect(calls[0].args.slice(1, 4)).toEqual(["ticket-jti-hash", 1_000, leaseId]);
     expect(calls[0].args[4]).toBe("{saa-remote-v1}:test");
+  });
+
+  it("resolves a short one-time run code without storing the raw code in Redis", async () => {
+    const values = new Map();
+    const calls = [];
+    const redis = {
+      async set(key, value, options) { calls.push({ key, value, options }); values.set(key, value); return "OK"; },
+      async get(key) { return values.get(key); },
+      async eval(script, keys, args) { calls.push({ script, keys, args }); if (values.get(keys[0]) !== args[0]) return 0; values.delete(keys[0]); return 1; },
+    };
+    const code = "run_ABCDEFGHIJKLMNOPQRSTUVWX";
+    const ticket = `saa1.${"a".repeat(48)}`;
+    await storePairingCode(code, ticket, 400_000, redis, 100_000);
+    expect(calls[0].key).not.toContain(code);
+    expect(calls[0].options).toEqual({ nx: true, ex: 300 });
+    await expect(resolvePairingCode(code, redis)).resolves.toBe(ticket);
+    await expect(consumePairingCode(code, ticket, redis)).resolves.toBe(true);
+    await expect(resolvePairingCode(code, redis)).rejects.toThrow("Invalid Arena capability");
+    expect(__test.CONSUME_PAIRING_CODE_SCRIPT).toContain("saa.consume-pairing-code.v1");
   });
 
   it("uses an owned distributed command lock and never blindly deletes a successor lock", async () => {

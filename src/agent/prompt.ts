@@ -7,7 +7,7 @@ const DEFAULT_COMMAND_ENDPOINT = "https://solari-agent-arena.vercel.app/api/aren
 export function buildAgentPrompt(
   listing: CourseListing,
   seed: number,
-  pairingTicket: string,
+  pairingCode: string,
   track: RemoteTrack,
   commandEndpoint = DEFAULT_COMMAND_ENDPOINT,
 ): string {
@@ -17,8 +17,8 @@ export function buildAgentPrompt(
     ? course.checkpoints.map((point, index) => `${index + 1}. ${point.id}: x=${point.x}, y=${point.y}, radius=${point.radius}m`).join("\n")
     : course.checkpoints.map((point, index) => `${index + 1}. ${point.id}`).join("\n");
   const schemaVersion = "solari.arena.http-command.v1";
-  const connectBody = JSON.stringify({ schemaVersion, operation: "connect", ticket: pairingTicket });
-  const stateId = (pairingTicket.split(".")[1] ?? pairingTicket).replace(/[^a-z0-9_-]/gi, "").slice(0, 16) || "run";
+  const connectBody = JSON.stringify({ schemaVersion, operation: "connect", ticket: pairingCode });
+  const stateId = pairingCode.replace(/[^a-z0-9_-]/gi, "").slice(0, 20) || "run";
   const sessionFile = `/tmp/solari-agent-arena-${stateId}-session.json`;
   const lastFile = `/tmp/solari-agent-arena-${stateId}-last.json`;
   return `SYSTEM PROMPT — SOLARI AGENT ARENA LIVE RUN

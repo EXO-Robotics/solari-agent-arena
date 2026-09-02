@@ -7,6 +7,7 @@ describe("zero-install Arena HTTP commands", () => {
   it("accepts the exact five-operation command surface", () => {
     expect(REMOTE_HTTP_OPERATIONS).toEqual(["connect", "observe", "act", "finish", "disconnect"]);
     expect(validateRemoteHttpCommand({ schemaVersion: "solari.arena.http-command.v1", operation: "connect", ticket: capability })).toMatchObject({ operation: "connect" });
+    expect(validateRemoteHttpCommand({ schemaVersion: "solari.arena.http-command.v1", operation: "connect", ticket: "run_ABCDEFGHIJKLMNOPQRSTUVWX" })).toMatchObject({ operation: "connect" });
     expect(validateRemoteHttpCommand({ schemaVersion: "solari.arena.http-command.v1", operation: "observe", arenaSession: capability })).toMatchObject({ operation: "observe" });
     expect(validateRemoteHttpCommand({ schemaVersion: "solari.arena.http-command.v1", operation: "act", arenaSession: capability, expectedSequence: 0, drive: 1, turn: -0.2, durationMs: 800 })).toMatchObject({ operation: "act" });
     expect(validateRemoteHttpCommand({ schemaVersion: "solari.arena.http-command.v1", operation: "finish", arenaSession: capability })).toMatchObject({ operation: "finish" });

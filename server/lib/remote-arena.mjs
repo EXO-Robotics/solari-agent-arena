@@ -1,4 +1,5 @@
 import puppeteer from "puppeteer-core";
+import { randomBytes } from "node:crypto";
 import { sha256 } from "./evidence.mjs";
 import { createPairingClaims, createSessionClaims, hashOpaque, openCapability, sealCapability } from "./remote-capability.mjs";
 import { getRemoteCourse, remoteCourseHash, REMOTE_TRACKS } from "./remote-courses.mjs";
@@ -6,7 +7,8 @@ import { createSolariBrowserSession, downloadSolariBrowserReplay, releaseSolariB
 import { resolveArenaUrl } from "./arena-url.mjs";
 import {
   abandonAdmissionLease, acquireCommandLock, bindOrphanAdmission, cancelPendingAdmission, closeAdmissionLease,
-  commitAdmission, markAdmissionCreating, redeemAdmission, releaseCommandLock, requireActiveAdmission,
+  commitAdmission, consumePairingCode, markAdmissionCreating, redeemAdmission, releaseCommandLock, requireActiveAdmission,
+  resolvePairingCode, storePairingCode,
 } from "./remote-admission.mjs";
 import { scheduleAdmissionExpiry } from "./remote-expiry-scheduler.mjs";
 
@@ -211,6 +213,9 @@ export async function issuePracticeTicket({ courseId, seed, track }, admission) 
     } finally {
       await browser.disconnect();
     }
+    const pairingTicket = sealCapability(claims);
+    const pairingCode = `run_${randomBytes(18).toString("base64url")}`;
+    await storePairingCode(pairingCode, pairingTicket, claims.exp * 1_000);
     ready = true;
     return {
       schemaVersion: "solari.arena.pairing-ticket.v1",
@@ -220,7 +225,7 @@ export async function issuePracticeTicket({ courseId, seed, track }, admission) 
       courseHash: claims.courseHash,
       seed,
       track,
-      pairingTicket: sealCapability(claims),
+      pairingCode,
       expiresAt: new Date(claims.exp * 1_000).toISOString(),
       replayPolicy: "This ticket can be redeemed once. It reattaches to one recorded Solari Browser and expires after five minutes if unclaimed.",
     };
@@ -231,8 +236,10 @@ export async function issuePracticeTicket({ courseId, seed, track }, admission) 
   }
 }
 
-export async function connectPractice(pairingTicket) {
+export async function connectPractice(pairingReference) {
   requireRemoteConfig();
+  const pairingCode = pairingReference.startsWith("run_") ? pairingReference : null;
+  const pairingTicket = pairingCode ? await resolvePairingCode(pairingCode) : pairingReference;
   const pairing = openCapability(pairingTicket, "pairing");
   const listing = getRemoteCourse(pairing.courseId);
   if (remoteCourseHash(listing.course) !== pairing.courseHash) throw new Error("Arena course binding failed.");
@@ -242,6 +249,7 @@ export async function connectPractice(pairingTicket) {
     verifyLoadedState(pairing, loaded);
     const image = pairing.track === "vision-v1" ? await withBrowser(pairing, viewportPng) : undefined;
     await redeemAdmission(pairing.leaseId, pairing.solariSessionId, hashOpaque(pairing.jti));
+    if (pairingCode) await consumePairingCode(pairingCode, pairingTicket).catch(() => false);
     const sessionClaims = createSessionClaims(pairing);
     return {
       arenaSession: sealCapability(sessionClaims),
