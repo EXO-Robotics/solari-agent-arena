@@ -11,6 +11,25 @@ import {
 import { scheduleAdmissionExpiry } from "./remote-expiry-scheduler.mjs";
 
 const BROWSER_API_VERSION = "0.1.2";
+const REQUIRED_ARENA_TOOL_METHODS = Object.freeze(["reset", "manifest", "observe", "transcript", "act"]);
+const REMOTE_TICKET_PHASES = new Set([
+  "admission-creating", "provider-create", "admission-commit", "cleanup-schedule",
+  "browser-connect", "arena-navigate", "arena-ready", "binding-verify",
+]);
+
+export function arenaToolApiReady(arena) {
+  return Boolean(arena && REQUIRED_ARENA_TOOL_METHODS.every((method) => typeof arena[method] === "function"));
+}
+
+function tagRemoteFailure(error, phase) {
+  const tagged = new Error(error instanceof Error ? error.message : "Remote Arena request failed.", { cause: error });
+  tagged.remotePhase = REMOTE_TICKET_PHASES.has(phase) ? phase : "unknown";
+  return tagged;
+}
+
+export function remoteFailurePhase(error) {
+  return error && typeof error === "object" && REMOTE_TICKET_PHASES.has(error.remotePhase) ? error.remotePhase : "unknown";
+}
 
 export function remotePracticeEnabled() {
   return process.env.SOLARI_REMOTE_ENABLED === "true";
@@ -153,23 +172,34 @@ export async function issuePracticeTicket({ courseId, seed, track }, admission) 
   let creatingAdmission;
   let committed;
   let ready = false;
+  let phase = "admission-creating";
   try {
     creatingAdmission = await markAdmissionCreating(admission);
+    phase = "provider-create";
     session = await createSolariBrowserSession();
     claims = createPairingClaims({ course: listing.course, courseHash: remoteCourseHash(listing.course), seed, track, session, arenaUrl, leaseId: admission.leaseId });
+    phase = "admission-commit";
     committed = await commitAdmission(creatingAdmission, session.id, { pairingExpiresAt: claims.exp * 1_000, hardExpiresAt: Date.parse(claims.hardExpiresAt) });
+    phase = "cleanup-schedule";
     await scheduleAdmissionExpiry({
       leaseId: admission.leaseId,
       pairingExpiresAt: claims.exp * 1_000,
       hardExpiresAt: Date.parse(claims.hardExpiresAt),
       arenaUrl,
     });
+    phase = "browser-connect";
     const browser = await puppeteer.connect(connectOptions(session.cdpEndpoint));
     try {
       const pages = await browser.pages();
       const page = pages[0] ?? await browser.newPage();
+      phase = "arena-navigate";
       await page.goto(arenaUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
-      await page.waitForSelector('[data-testid="agent-phase"]', { timeout: 60_000 });
+      phase = "arena-ready";
+      await page.waitForFunction((requiredMethods) => {
+        const arena = window.solariAgentArena;
+        return Boolean(arena && requiredMethods.every((method) => typeof arena[method] === "function"));
+      }, { timeout: 60_000 }, REQUIRED_ARENA_TOOL_METHODS);
+      phase = "binding-verify";
       const loaded = await page.evaluate((requestedSeed) => {
         const arena = window.solariAgentArena;
         if (!arena) throw new Error("Arena tools are not ready.");
@@ -193,6 +223,8 @@ export async function issuePracticeTicket({ courseId, seed, track }, admission) 
       expiresAt: new Date(claims.exp * 1_000).toISOString(),
       replayPolicy: "This ticket can be redeemed once. It reattaches to one recorded Solari Browser and expires after five minutes if unclaimed.",
     };
+  } catch (error) {
+    throw tagRemoteFailure(error, phase);
   } finally {
     if (!ready) await settleFailedPracticeTicket({ admission, creatingAdmission, session, claims, committed, arenaUrl });
   }

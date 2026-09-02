@@ -1,4 +1,4 @@
-import { issuePracticeTicket, remotePracticeEnabled, sanitizeRemoteError } from "../server/lib/remote-arena.mjs";
+import { issuePracticeTicket, remoteFailurePhase, remotePracticeEnabled, sanitizeRemoteError } from "../server/lib/remote-arena.mjs";
 import { readBoundedJson, sendJson, validateRemoteRequestBoundary } from "../server/lib/http-guards.mjs";
 import { getRemoteCourse, REMOTE_TRACKS } from "../server/lib/remote-courses.mjs";
 import {
@@ -45,5 +45,8 @@ export default async function handler(request, response) {
     return sendJson(response, 503, { error: "Hosted practice cleanup is temporarily unavailable." });
   }
   try { return sendJson(response, 201, await issuePracticeTicket(input, admission)); }
-  catch (error) { return sendJson(response, 502, { error: sanitizeRemoteError(error) }); }
+  catch (error) {
+    console.error("Hosted practice ticket mint failed", { phase: remoteFailurePhase(error) });
+    return sendJson(response, 502, { error: sanitizeRemoteError(error) });
+  }
 }

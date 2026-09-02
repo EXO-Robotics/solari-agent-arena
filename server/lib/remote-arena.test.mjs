@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { formatPracticeObservation, sanitizeRemoteError, settleFailedPracticeTicket } from "./remote-arena.mjs";
+import {
+  arenaToolApiReady, formatPracticeObservation, remoteFailurePhase, sanitizeRemoteError, settleFailedPracticeTicket,
+} from "./remote-arena.mjs";
 import { readFileSync } from "node:fs";
 
 const claims = {
@@ -28,6 +30,22 @@ describe("remote practice disclosure boundary", () => {
 
   it("does not reflect infrastructure errors or secrets", () => {
     expect(sanitizeRemoteError(new Error("wss://secret.getsolari.com/cdp/sid-123"))).toBe("Arena request failed safely. No authoritative result was created.");
+  });
+
+  it("treats the tool API, not an early DOM marker, as Arena readiness", () => {
+    const readyApi = Object.fromEntries(["reset", "manifest", "observe", "transcript", "act"].map((method) => [method, () => method]));
+    expect(arenaToolApiReady({ agentPhaseElement: true })).toBe(false);
+    expect(arenaToolApiReady({ ...readyApi, act: undefined })).toBe(false);
+    expect(arenaToolApiReady(readyApi)).toBe(true);
+    const source = readFileSync(new URL("./remote-arena.mjs", import.meta.url), "utf8");
+    expect(source).toContain("page.waitForFunction");
+    expect(source).not.toContain("waitForSelector('[data-testid=\"agent-phase\"]')");
+  });
+
+  it("reports only allowlisted ticket phases for server-side diagnostics", () => {
+    expect(remoteFailurePhase({ remotePhase: "arena-ready" })).toBe("arena-ready");
+    expect(remoteFailurePhase({ remotePhase: "wss://secret.example/session" })).toBe("unknown");
+    expect(remoteFailurePhase(new Error("secret"))).toBe("unknown");
   });
 
   it("retains quota and binds cleanup when provider deletion is not confirmed", async () => {
