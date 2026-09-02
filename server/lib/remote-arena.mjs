@@ -7,7 +7,7 @@ import { createSolariBrowserSession, downloadSolariBrowserReplay, releaseSolariB
 import { resolveArenaUrl } from "./arena-url.mjs";
 import {
   abandonAdmissionLease, acquireCommandLock, bindOrphanAdmission, cancelPendingAdmission, closeAdmissionLease,
-  commitAdmission, consumePairingCode, markAdmissionCreating, redeemAdmission, releaseCommandLock, requireActiveAdmission,
+  commitAdmission, markAdmissionCreating, redeemAdmission, releaseCommandLock, requireActiveAdmission,
   resolvePairingCode, storePairingCode,
 } from "./remote-admission.mjs";
 import { scheduleAdmissionExpiry } from "./remote-expiry-scheduler.mjs";
@@ -248,8 +248,13 @@ export async function connectPractice(pairingReference) {
     const loaded = await withBrowser(pairing, readLoadedState);
     verifyLoadedState(pairing, loaded);
     const image = pairing.track === "vision-v1" ? await withBrowser(pairing, viewportPng) : undefined;
-    await redeemAdmission(pairing.leaseId, pairing.solariSessionId, hashOpaque(pairing.jti));
-    if (pairingCode) await consumePairingCode(pairingCode, pairingTicket).catch(() => false);
+    await redeemAdmission({
+      leaseId: pairing.leaseId,
+      sessionId: pairing.solariSessionId,
+      ticketJtiHash: hashOpaque(pairing.jti),
+      pairingCode,
+      pairingTicket: pairingCode ? pairingTicket : null,
+    });
     const sessionClaims = createSessionClaims(pairing);
     return {
       arenaSession: sealCapability(sessionClaims),

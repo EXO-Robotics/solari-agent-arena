@@ -138,9 +138,12 @@ if redis.call("HEXISTS", KEYS[1], "ticketJtiHash") == 1 then return 0 end
 local hardExpiresAt = tonumber(redis.call("HGET", KEYS[1], "hardExpiresAt"))
 local ipHash = redis.call("HGET", KEYS[1], "ipHash")
 if not hardExpiresAt or not ipHash then return 0 end
+local pairingTicket = ARGV[6]
+if pairingTicket ~= "" and redis.call("GET", KEYS[3]) ~= pairingTicket then return 0 end
 redis.call("HSET", KEYS[1], "state", "active", "ticketJtiHash", ARGV[2], "redeemedAt", ARGV[3])
 redis.call("ZADD", KEYS[2], hardExpiresAt, ARGV[4])
 redis.call("ZADD", ARGV[5] .. ":active:ip:" .. ipHash, hardExpiresAt, ARGV[4])
+if pairingTicket ~= "" then redis.call("DEL", KEYS[3]) end
 return 1
 `;
 
@@ -220,11 +223,6 @@ return {previous, current}
 `;
 
 const RELEASE_LOCK_SCRIPT = `-- saa.release-lock.v1
-if redis.call("GET", KEYS[1]) ~= ARGV[1] then return 0 end
-return redis.call("DEL", KEYS[1])
-`;
-
-const CONSUME_PAIRING_CODE_SCRIPT = `-- saa.consume-pairing-code.v1
 if redis.call("GET", KEYS[1]) ~= ARGV[1] then return 0 end
 return redis.call("DEL", KEYS[1])
 `;
@@ -414,10 +412,12 @@ export async function cancelPendingAdmission(admission, redis = redisFromEnv()) 
   return Number(await redis.eval(CANCEL_PENDING_SCRIPT, [k.lease, k.active, k.holderActive, k.leaseIp], [k.base, admission.leaseId])) === 1;
 }
 
-export async function redeemAdmission(leaseId, sessionId, ticketJtiHash, redis = redisFromEnv(), nowMs = Date.now()) {
+export async function redeemAdmission({ leaseId, sessionId, ticketJtiHash, pairingCode = null, pairingTicket = null }, redis = redisFromEnv(), nowMs = Date.now()) {
+  if (Boolean(pairingCode) !== Boolean(pairingTicket)) throw new Error("Invalid Arena capability.");
   const sessionIdHash = hmac("session-hash", sessionId);
   const k = keys(leaseId, "unused", sessionIdHash);
-  const redeemed = await redis.eval(REDEEM_SCRIPT, [k.lease, k.active], [sessionIdHash, ticketJtiHash, Math.floor(nowMs / 1_000), leaseId, k.base]);
+  const pairingKey = pairingCode ? pairingCodeKey(pairingCode) : `${k.base}:pairing-code:legacy-unused`;
+  const redeemed = await redis.eval(REDEEM_SCRIPT, [k.lease, k.active, pairingKey], [sessionIdHash, ticketJtiHash, Math.floor(nowMs / 1_000), leaseId, k.base, pairingTicket ?? ""]);
   if (Number(redeemed) !== 1) throw new Error("Arena pairing ticket was already redeemed or revoked.");
   return true;
 }
@@ -434,10 +434,6 @@ export async function resolvePairingCode(code, redis = redisFromEnv()) {
   const pairingTicket = await redis.get(pairingCodeKey(code));
   if (typeof pairingTicket !== "string" || !pairingTicket.startsWith("saa1.")) throw new Error("Invalid Arena capability.");
   return pairingTicket;
-}
-
-export async function consumePairingCode(code, pairingTicket, redis = redisFromEnv()) {
-  return Number(await redis.eval(CONSUME_PAIRING_CODE_SCRIPT, [pairingCodeKey(code)], [pairingTicket])) === 1;
 }
 
 export async function requireActiveAdmission(leaseId, sessionId, redis = redisFromEnv(), nowMs = Date.now()) {
@@ -550,5 +546,5 @@ export async function remoteUsageStatus(redis = redisFromEnv(), nowMs = Date.now
 export const __test = Object.freeze({
   COOKIE_NAME, RESERVE_SCRIPT, MARK_CREATING_SCRIPT, COMMIT_SCRIPT, BIND_ORPHAN_SCRIPT, CANCEL_PENDING_SCRIPT,
   REDEEM_SCRIPT, CLOSE_SCRIPT, ABANDON_SCRIPT, DUE_SCRIPT, RESET_SCRIPT, RELEASE_LOCK_SCRIPT,
-  DEFER_OR_PRUNE_SCRIPT, CONSUME_PAIRING_CODE_SCRIPT, SWEEP_HEARTBEAT_MAX_AGE_SECONDS,
+  DEFER_OR_PRUNE_SCRIPT, SWEEP_HEARTBEAT_MAX_AGE_SECONDS,
 });

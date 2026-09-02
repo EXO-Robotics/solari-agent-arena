@@ -2,7 +2,8 @@
   "schemaVersion": "solari.arena.live-walkthrough.v1",
   "testedAt": "2026-09-02T15:18:15.536Z",
   "liveUrl": "https://solari-agent-arena.vercel.app",
-  "commit": "7764793",
+  "testedRuntimeCommit": "776479381334b1f01eb43e2bd31353d43d7fb3d9",
+  "evidenceFirstPublishedCommit": "c368add2932c8ec5c0c561a49276b2dd97cab19e",
   "tester": {
     "model": "gpt-5.6-luna",
     "environment": "fresh projectless temporary directory",

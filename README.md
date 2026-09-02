@@ -98,7 +98,7 @@ The copied system prompt posts one strict JSON object at a time to `https://sola
 | `finish(arenaSession)` | Release Browser and return transcript plus `solari.arena.remote-practice-run.v1`. |
 | `disconnect(arenaSession)` | Release without issuing a practice result. |
 
-The endpoint accepts ordinary JSON over HTTPS, so a coding agent can use its existing shell or HTTP capability. It does not install anything in the model host. The `run_…` value is a temporary random bearer reference, while `arenaSession` is an encrypted bearer capability; neither is a Solari credential. Redis never stores the raw run code in a key, the mapping expires after five minutes, and successful connect consumes it. The copied prompt stores the exact session token with owner-only file permissions, reads it programmatically for every action, removes it after finish/disconnect, and tells the agent never to repeat it in its final response.
+The endpoint accepts ordinary JSON over HTTPS, so a coding agent can use its existing shell or HTTP capability. It does not install anything in the model host. The `run_…` value is a temporary random bearer reference, while `arenaSession` is an encrypted bearer capability; neither is a Solari credential. Redis never stores the raw run code in a key, the mapping expires after five minutes, and successful admission atomically consumes it while activating the lease. The copied prompt stores the exact session token with owner-only file permissions, reads it programmatically for every action, removes it after finish/disconnect, and tells the agent never to repeat it in its final response.
 
 ### Hosted remote MCP: optional compatibility path
 
