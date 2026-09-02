@@ -14,11 +14,14 @@ import { scheduleAdmissionExpiry } from "./remote-expiry-scheduler.mjs";
 
 const BROWSER_API_VERSION = "0.1.2";
 const BROWSER_PROTOCOL_TIMEOUT_MS = 60_000;
+const BROWSER_CONNECT_ATTEMPTS = 2;
+const BROWSER_CONNECT_BACKOFF_MS = 500;
 const REQUIRED_ARENA_TOOL_METHODS = Object.freeze(["reset", "manifest", "observe", "transcript", "act"]);
 const REMOTE_TICKET_PHASES = new Set([
   "admission-creating", "provider-create", "admission-commit", "cleanup-schedule",
   "browser-connect", "arena-navigate", "arena-ready", "binding-verify",
 ]);
+const REMOTE_COMMAND_STAGES = new Set(["browser-connect", "page-discovery", "page-evaluate"]);
 
 export function arenaToolApiReady(arena) {
   return Boolean(arena && REQUIRED_ARENA_TOOL_METHODS.every((method) => typeof arena[method] === "function"));
@@ -32,6 +35,40 @@ function tagRemoteFailure(error, phase) {
 
 export function remoteFailurePhase(error) {
   return error && typeof error === "object" && REMOTE_TICKET_PHASES.has(error.remotePhase) ? error.remotePhase : "unknown";
+}
+
+function tagRemoteCommandFailure(error, stage) {
+  const tagged = new Error(error instanceof Error ? error.message : "Remote Arena command failed.", { cause: error });
+  tagged.remoteCommandStage = REMOTE_COMMAND_STAGES.has(stage) ? stage : "unknown";
+  return tagged;
+}
+
+export function remoteCommandFailureStage(error) {
+  return error && typeof error === "object" && REMOTE_COMMAND_STAGES.has(error.remoteCommandStage) ? error.remoteCommandStage : "unknown";
+}
+
+function failureText(error) {
+  const parts = [];
+  let current = error;
+  for (let depth = 0; depth < 3 && current && typeof current === "object"; depth += 1) {
+    if (typeof current.name === "string") parts.push(current.name);
+    if (typeof current.message === "string") parts.push(current.message);
+    current = current.cause;
+  }
+  return parts.join(" ");
+}
+
+export function remoteFailureDiagnostic(error) {
+  const text = failureText(error);
+  const stage = remoteCommandFailureStage(error);
+  if (/timeout|timed out/i.test(text)) return { code: "browser_timeout", stage, retryable: true };
+  if (/target closed|session closed|connection closed|browser has disconnected|econnreset|socket hang up|websocket/i.test(text)) {
+    return { code: "browser_disconnected", stage, retryable: true };
+  }
+  if (/Arena tools are not ready/i.test(text)) return { code: "arena_tools_unavailable", stage, retryable: true };
+  if (/Arena page is unavailable/i.test(text)) return { code: "arena_page_unavailable", stage, retryable: true };
+  if (/Wait for the active tool action to finish/i.test(text)) return { code: "action_in_progress", stage, retryable: true };
+  return { code: "browser_control_failure", stage, retryable: true };
 }
 
 export function remotePracticeEnabled() {
@@ -50,19 +87,35 @@ function connectOptions(endpoint) {
     : { browserURL: endpoint, protocolTimeout: BROWSER_PROTOCOL_TIMEOUT_MS };
 }
 
+async function connectBrowser(claims) {
+  let lastError;
+  for (let attempt = 0; attempt < BROWSER_CONNECT_ATTEMPTS; attempt += 1) {
+    try { return await puppeteer.connect(connectOptions(claims.cdpEndpoint)); }
+    catch (error) {
+      lastError = error;
+      if (attempt + 1 < BROWSER_CONNECT_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, BROWSER_CONNECT_BACKOFF_MS));
+    }
+  }
+  throw tagRemoteCommandFailure(lastError, "browser-connect");
+}
+
 async function withBrowser(claims, callback) {
-  const browser = await puppeteer.connect(connectOptions(claims.cdpEndpoint));
+  const browser = await connectBrowser(claims);
   try {
-    const pages = await browser.pages();
+    let pages;
+    try { pages = await browser.pages(); }
+    catch (error) { throw tagRemoteCommandFailure(error, "page-discovery"); }
     const expected = new URL(claims.arenaUrl);
     const page = pages.find((candidate) => {
       try { const current = new URL(candidate.url()); return current.origin === expected.origin && current.pathname === "/"; }
       catch { return false; }
     });
-    if (!page) throw new Error("Arena page is unavailable.");
-    return await callback(page);
+    if (!page) throw tagRemoteCommandFailure(new Error("Arena page is unavailable."), "page-discovery");
+    try { return await callback(page); }
+    catch (error) { throw tagRemoteCommandFailure(error, "page-evaluate"); }
   } finally {
-    await browser.disconnect();
+    try { await browser.disconnect(); }
+    catch { /* A local CDP detach must not replace a completed command result. */ }
   }
 }
 

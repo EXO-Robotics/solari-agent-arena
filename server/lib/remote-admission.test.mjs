@@ -51,7 +51,8 @@ describe("remote public admission", () => {
 
   it("rejects a tampered holder cookie and rotates the anonymous subject", () => {
     const first = anonymousHolder(request());
-    const cookie = first.setCookie.split(";")[0].replace(/.$/, "0");
+    const originalCookie = first.setCookie.split(";")[0];
+    const cookie = `${originalCookie.slice(0, -1)}${originalCookie.endsWith("0") ? "1" : "0"}`;
     const second = anonymousHolder(request(cookie));
     expect(second.id).not.toBe(first.id);
     expect(second.setCookie).toContain("__Host-saa_holder=");

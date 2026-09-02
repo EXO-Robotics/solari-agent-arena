@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  arenaToolApiReady, formatPracticeObservation, remoteFailurePhase, sanitizeRemoteError, settleFailedPracticeTicket,
+  arenaToolApiReady, formatPracticeObservation, remoteCommandFailureStage, remoteFailureDiagnostic, remoteFailurePhase,
+  sanitizeRemoteError, settleFailedPracticeTicket,
 } from "./remote-arena.mjs";
 import { readFileSync } from "node:fs";
 
@@ -35,7 +36,15 @@ describe("remote practice disclosure boundary", () => {
   it("keeps slow bounded Browser actions inside the serverless deadline", () => {
     const source = readFileSync(new URL("./remote-arena.mjs", import.meta.url), "utf8");
     expect(source).toContain('const BROWSER_PROTOCOL_TIMEOUT_MS = 60_000;');
+    expect(source).toContain("const BROWSER_CONNECT_ATTEMPTS = 2;");
     expect(source).not.toContain("protocolTimeout: 15_000");
+  });
+
+  it("classifies Browser failures without reflecting endpoint details", () => {
+    const endpoint = new Error("WebSocket connection closed for wss://secret.example/cdp/token");
+    endpoint.remoteCommandStage = "browser-connect";
+    expect(remoteFailureDiagnostic(endpoint)).toEqual({ code: "browser_disconnected", stage: "browser-connect", retryable: true });
+    expect(remoteCommandFailureStage({ remoteCommandStage: "wss://secret.example" })).toBe("unknown");
   });
 
   it("exposes only a safe action-sequence recovery hint", () => {

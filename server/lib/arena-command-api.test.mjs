@@ -53,4 +53,5 @@ describe("Arena HTTP command API", () => {
     expect(output.statusCode).toBe(405);
     expect(output.headers.allow).toBe("POST");
   });
+
 });

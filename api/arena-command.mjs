@@ -9,5 +9,18 @@ export default async function handler(request, response) {
   try { command = validateRemoteHttpCommand(await readBoundedJson(request)); }
   catch { return sendJson(response, 400, { error: "Invalid Arena HTTP command." }); }
   try { return sendJson(response, 200, await executeRemoteHttpCommand(command)); }
-  catch (error) { const failure = remoteHttpError(error); return sendJson(response, failure.status, { error: failure.error }); }
+  catch (error) {
+    const failure = remoteHttpError(error, command.operation);
+    if (failure.status === 502) console.error(JSON.stringify({
+      level: "error",
+      event: "arena_command_failed",
+      operation: command.operation,
+      code: failure.code,
+      retryable: failure.retryable,
+      recovery: failure.recovery,
+      diagnosticStage: failure.diagnosticStage,
+    }));
+    const { status, ...body } = failure;
+    return sendJson(response, status, body);
+  }
 }

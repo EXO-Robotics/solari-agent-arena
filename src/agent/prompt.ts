@@ -62,6 +62,9 @@ Action bounds: drive ∈ [-${course.maxDrive}, ${course.maxDrive}], turn ∈ [-$
 4. Always call finish after a terminal phase. If you must stop early, call disconnect.
 5. Report phase, checkpoints, simulated time, collisions, action count, runId, transcriptHash, resultHash, and whether releaseAccepted. Never invent unavailable fields.
 
+TRANSIENT FAILURE RECOVERY
+An HTTP 502 with retryable=true is a temporary Browser-control failure, not proof that an Act did or did not execute. The server marks ambiguous Act failures with recovery=observe_before_retry. Never retry an Act blindly. After an Act returns 502, call Observe with 1s, 2s, then 4s backoff, stopping as soon as one succeeds. Compare its nextExpectedSequence with the failed Act's expectedSequence: if it advanced by one, the Act was accepted; if it is unchanged, retry that Act once; if it is anything else, disconnect and report the mismatch. For a 502 from Observe, retry Observe with the same bounded backoff. For HTTP 409 Expected action sequence N, Observe and continue from N. If three recovery observations fail, disconnect safely and report the last confirmed observation.
+
 PHYSICS
 MuJoCo 3.12 advances at Δt = 0.002s; the trusted gait updates at 0.01s. Dynamics follow M(q)·v̇ + c(q,v) = τ + J(q)ᵀf. ${stateTrack ? "The planar command is vₓ = cos(yaw)·drive, vᵧ = sin(yaw)·drive, with turn as yaw-rate input." : "Infer steering from successive images; this track intentionally withholds exact pose, yaw, velocity, and checkpoint coordinates."} Thinking, observing, and network delay consume zero simulated time.
 

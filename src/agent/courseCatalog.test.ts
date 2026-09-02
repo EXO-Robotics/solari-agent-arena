@@ -35,6 +35,8 @@ describe("course library", () => {
     expect(prompt).toContain("east-beacon");
     expect(prompt).toContain("Do not ask the user to install MCP");
     expect(prompt).toContain("ARENA_HTTP_UNAVAILABLE");
+    expect(prompt).toContain("Never retry an Act blindly");
+    expect(prompt).toContain("observe_before_retry");
     expect(prompt).toContain("courseId=arena-slalom-ramp-v1");
   });
 

@@ -1,4 +1,6 @@
-import { actPractice, connectPractice, disconnectPractice, finishPractice, observePractice, sanitizeRemoteError } from "./remote-arena.mjs";
+import {
+  actPractice, connectPractice, disconnectPractice, finishPractice, observePractice, remoteFailureDiagnostic, sanitizeRemoteError,
+} from "./remote-arena.mjs";
 
 export const REMOTE_HTTP_SCHEMA_VERSION = "solari.arena.http-command.v1";
 export const REMOTE_HTTP_RESPONSE_VERSION = "solari.arena.http-command-response.v1";
@@ -58,7 +60,7 @@ export async function executeRemoteHttpCommand(command) {
   return publicResult(input.operation, value);
 }
 
-export function remoteHttpError(error) {
+export function remoteHttpError(error, operation = "unknown") {
   const message = sanitizeRemoteError(error);
   if (message === "Hosted Agent Practice is paused on this deployment." || message === "Hosted Agent Practice is not configured.") return { status: 503, error: message };
   if ([
@@ -67,5 +69,13 @@ export function remoteHttpError(error) {
   ].includes(message)) return { status: 401, error: message };
   if (message === "Arena command already in progress.") return { status: 409, error: message };
   if (message.includes("expectedSequence") || message.startsWith("Expected action sequence ") || message.includes("outside the course limits") || message.includes("durationMs")) return { status: 409, error: message };
-  return { status: 502, error: message };
+  const diagnostic = remoteFailureDiagnostic(error);
+  return {
+    status: 502,
+    error: message,
+    code: diagnostic.code,
+    retryable: diagnostic.retryable,
+    recovery: operation === "act" ? "observe_before_retry" : "retry_with_backoff",
+    diagnosticStage: diagnostic.stage,
+  };
 }
