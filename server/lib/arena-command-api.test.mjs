@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import handler from "./arena-command.mjs";
+import handler from "../../api/arena-command.mjs";
 
 const originalEnabled = process.env.SOLARI_REMOTE_ENABLED;
 const originalHosts = process.env.SOLARI_REMOTE_ALLOWED_HOSTS;
