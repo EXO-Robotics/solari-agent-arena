@@ -73,6 +73,12 @@ After independent review identified that sequence advancement can precede action
 
 A subsequent lock audit found the command/cleanup lifecycle mutex previously shared a 30-second TTL even though a command function can remain alive for 120 seconds. Command ownership now lasts 150 seconds while cleanup retains its bounded 30-second hold; both use the same owned compare-and-delete key. The full suite passed 129/129 after this correction.
 
+## Owner reset production milestone
+
+Vercel correctly prevents Sensitive Marketplace Redis values from being pulled into the local checkout, so the owner reset command now falls back to an authenticated branch of the existing cleanup function instead of requiring Redis credentials on the operator laptop. The branch requires the allowed production host, JSON, an exact bearer secret, the versioned owner-reset schema, exact operation/scope keys, and literal `RESET_DAILY_USAGE` confirmation. `SOLARI_EVALUATION_TOKEN` is accepted as a fallback only while `SOLARI_EVALUATION_ENABLED` is exactly `false`; enabling evaluation makes a separate `SOLARI_REMOTE_OWNER_TOKEN` mandatory.
+
+The first production reset through this path advanced the scoped quota epoch from 3 to 4, changed daily sessions from 4 to 0, and left active leases at 0. It minted no Browser ticket. Post-reset probes returned root 200 and practice enabled, while both isolated-evaluation APIs remained 503/paused. Retained receipt: [`owner-usage-reset-2026-09-02.json`](../evidence/production/owner-usage-reset-2026-09-02.json).
+
 ## Codex connection milestone
 
 After a clean Codex task correctly reported that pasted text could not create missing tools, the connection contract was repaired. The repository now provides an idempotent `npm run setup:codex` installer, a project-scoped `.codex/config.toml`, MCP initialization instructions, and a copied-prompt preflight that distinguishes a same-task Codex Browser page from an unrelated Safari tab. A fresh ephemeral `gpt-5.6-luna` task then discovered the registered MCP server and completed the then-current open → observe → close connection check without shell access, file edits, course actions, or a pre-opened tab. Retained proof: [`luna-clean-task.json`](../evidence/codex-connection/luna-clean-task.json). The current v1.1 tool contract additionally requires an explicit built-in `courseId`; the latest MCP production proof above covers that binding.

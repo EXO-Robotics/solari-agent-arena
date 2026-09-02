@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "solari.arena.owner-usage-reset-proof.v1",
+  "testedAt": "2026-09-02T18:04:52.500Z",
+  "testedRuntimeCommit": "05a5ce1",
+  "deploymentId": "dpl_GPbVfC7soSAU7Jr5WjPFvWnJn4oz",
+  "productionUrl": "https://solari-agent-arena.vercel.app",
+  "reset": {
+    "transport": "owner-endpoint",
+    "scope": "production",
+    "previousEpoch": 3,
+    "epoch": 4,
+    "dailySessionsBefore": 4,
+    "dailySessionsAfter": 0,
+    "activeLeasesBefore": 0,
+    "activeLeasesAfter": 0
+  },
+  "postDeployProbes": {
+    "rootStatus": 200,
+    "hostedPractice": {
+      "status": 200,
+      "enabled": true
+    },
+    "isolatedEvaluation": {
+      "controllerApiStatus": 503,
+      "agentApiStatus": 503,
+      "enabled": false
+    }
+  },
+  "verification": {
+    "targetedTests": "8/8",
+    "fullSuite": "137/137",
+    "productionBuild": "pass",
+    "secretPrinted": false,
+    "paidBrowserTicketMintedByProbe": false
+  },
+  "review": {
+    "provider": "Grok",
+    "sessionId": "01a0634c-a376-7b71-8580-cde631c5577e",
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 3,
+    "score": 9.6,
+    "verdict": "RELEASE",
+    "scope": "owner-reset security delta; invariant-based after full-repository release review"
+  },
+  "authority": "Operational quota-reset proof only; not a robot-run or authoritative Sandbox result."
+}

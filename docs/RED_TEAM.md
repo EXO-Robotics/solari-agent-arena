@@ -202,3 +202,17 @@ Fresh independent final session `01a0633a-1d06-7722-8698-c45e0c7b6c81` received 
 - Architecture and claim confidence: high; Solari remains load-bearing and materially improves Robot-3D-Sim.
 - Score: **9.8/10; effectively 10/10**.
 - **`RELEASE`.**
+
+## Owner-reset security delta
+
+The owner quota-reset change received a separate credential-free review. Grok's first completed analysis identified one legitimate separation-of-duty concern: an unconditional fallback to `SOLARI_EVALUATION_TOKEN` could become unsafe if that credential were later distributed for live evaluation. The finding was accepted. The fallback now works only while `SOLARI_EVALUATION_ENABLED` is exactly `false`; enabling evaluation without a dedicated `SOLARI_REMOTE_OWNER_TOKEN` makes owner reset authorization fail closed. Helper and HTTP tests cover that transition.
+
+The following proposed findings were rejected after checking the implementation:
+
+- QStash regression: scheduler requests carry no bearer and still execute the original canonical-URL signature path; bearer requests intentionally take a separate non-fallthrough owner branch.
+- reset/counter race: `resetDailyUsage` advances the scoped epoch and audit record in one Redis Lua script.
+- active-lease damage: the reset intentionally changes only the quota epoch and audit hash; it neither deletes nor releases leases.
+- missing destructive confirmation: the CLI requires the exact scope plus literal `RESET_DAILY_USAGE`, and the server accepts only the exact four-key versioned contract.
+- exploitable length timing: length mismatch is rejected before `timingSafeEqual`; revealing the length of a fixed high-entropy bearer does not reveal its value or create a practical Medium issue.
+
+Fresh bounded delta-review session `01a0634c-a376-7b71-8580-cde631c5577e` evaluated the final invariants and live receipt after the full-repository release review. It returned zero Critical/High/Medium findings, high architecture and claim confidence, confirmed Solari remains meaningful and load-bearing, scored the delta **9.6/10**, and returned **`RELEASE`**. Its three remaining Lows are operational hardening notes: prefer a dedicated owner token even while evaluation is paused; preserve the explicit dual-purpose route split; and rotate the long-lived owner bearer after any possible header/log exposure.
