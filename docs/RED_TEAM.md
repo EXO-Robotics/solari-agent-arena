@@ -178,3 +178,11 @@ Fresh independent delta-review session `01a062df-fafe-7811-95c0-a87547995397` re
 - Solari remains load-bearing and materially improves Robot-3D-Sim.
 - Prior score remains **9.8/10; exact final state effectively 10/10**.
 - **`RELEASE`.**
+
+## Post-release live-command incident
+
+A public Luna run later reached 2/3 checkpoints before three consecutive generic `/api/arena-command` 502 responses, then disconnected with provider release accepted. The failure was contained and non-authoritative, but it correctly invalidated the claim that the copied-prompt path was reliably complete for that run. Vercel logs confirmed the sequence but the old route emitted no safe internal failure classification, so a specific upstream root cause is not asserted.
+
+The remediation preserves mutation safety: CDP connection establishment receives one bounded retry before a callback begins; action evaluation is never blindly retried; an ambiguous action response directs the agent to observe and reconcile `nextExpectedSequence`; and a cleanup-only `browser.disconnect()` failure can no longer replace a successful command result. Structured diagnostics expose only allow-listed stage/code/recovery metadata and never the encrypted capability, CDP endpoint, provider session ID, or Solari credential.
+
+Targeted tests passed 22/22, the full suite passed 128/128, and the production build passed. A fresh live canonical rerun completed First Steps 3/3 in 8 actions, 11.72 simulated seconds, zero collisions, with transcript hash `9076f4f1…68489` and `releaseAccepted:true`; its ten Arena command requests all returned 200. The temporary one-slot quota override was removed and production isolated evaluation remained disabled. This incident requires a fresh independent review before the prior release signoff is extended to the remediation.

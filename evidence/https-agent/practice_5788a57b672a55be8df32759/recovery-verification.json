@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "solari.arena.live-recovery-verification.v1",
+  "testedAt": "2026-09-02T17:22:20Z",
+  "sourceCommit": "11855dfb4f7d1dad6d309bf2c25bbb25af2de1c5",
+  "verificationDeploymentId": "dpl_22VBSCpbo2GA2wfyhNTsQcGDSDwS",
+  "verificationDeploymentUrl": "https://solari-agent-arena-bhy3kx41u-blake23.vercel.app",
+  "finalRestoredDeploymentId": "dpl_6pVChLzr65D3Ts4Y1d9QmZjCgsAS",
+  "liveUrl": "https://solari-agent-arena.vercel.app",
+  "incident": {
+    "reportedPhase": "running",
+    "reportedCheckpoints": "2/3",
+    "reportedActions": 14,
+    "reportedConsecutiveHttp502": 3,
+    "releaseAccepted": true,
+    "rootCauseConfidence": "unconfirmed because the pre-fix route emitted no internal failure classification"
+  },
+  "remediation": {
+    "safeConnectAttempts": 2,
+    "connectBackoffMs": 500,
+    "completedCommandResultCannotBeOverwrittenByDetachFailure": true,
+    "secretFreeFailureClassification": true,
+    "ambiguousActionRecovery": "observe_before_retry",
+    "blindActionRetryAllowed": false
+  },
+  "result": {
+    "runId": "practice_5788a57b672a55be8df32759",
+    "courseId": "practice-first-steps-v1",
+    "seed": 42,
+    "phase": "complete",
+    "checkpoints": {
+      "reached": 3,
+      "total": 3,
+      "nextId": null
+    },
+    "simulatedTimeSeconds": 11.720000000000583,
+    "collisions": 0,
+    "actions": 8,
+    "transcriptHash": "9076f4f1a89a14d87919231070923f4cd0b0f9a09ae8196a31cd47573ac68489",
+    "resultHash": "87c15437de86eda6fb9255315486e2d236c59f5d7e76a2c4e402c6b3a8d3dcd5",
+    "releaseAccepted": true,
+    "authoritative": false
+  },
+  "productionLogSummary": {
+    "ticketPostStatus": 201,
+    "arenaCommandStatusCounts": {
+      "200": 10,
+      "502": 0
+    },
+    "note": "Vercel logs cover connect, eight actions, and finish. No session capability, CDP endpoint, provider session ID, or credential is retained."
+  },
+  "quotaRestoration": {
+    "temporaryIpDailyLimit": 3,
+    "temporaryOverrideRemoved": true,
+    "finalProductionUsesDefaultIpDailyLimit": 2,
+    "isolatedEvaluationEnabled": false
+  }
+}
