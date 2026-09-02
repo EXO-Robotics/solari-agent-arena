@@ -174,6 +174,7 @@ describe("remote public admission", () => {
     const lock = await acquireCommandLock("11111111-1111-4111-8111-111111111111", redis);
     await releaseCommandLock(lock, redis);
     expect(lock.token).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(calls[0].options).toEqual({ nx: true, ex: 150 });
     expect(calls[1].script).toContain("saa.release-lock.v1");
     expect(calls[1].args).toEqual([lock.token]);
   });
@@ -185,6 +186,14 @@ describe("remote public admission", () => {
     await acquireCleanupLock("11111111-1111-4111-8111-111111111111", redis);
     expect(keys[0]).toBe(keys[1]);
     expect(keys[0]).toContain("lifecycle-lock");
+  });
+
+  it("keeps command ownership beyond the 120-second function ceiling", async () => {
+    const options = [];
+    const redis = { async set(_key, _token, value) { options.push(value); return "OK"; } };
+    await acquireCommandLock("11111111-1111-4111-8111-111111111111", redis);
+    await acquireCleanupLock("11111111-1111-4111-8111-111111111111", redis);
+    expect(options).toEqual([{ nx: true, ex: 150 }, { nx: true, ex: 30 }]);
   });
 
   it("resets daily usage by advancing an epoch without touching active leases", async () => {

@@ -59,7 +59,7 @@
     "firstReviewAttemptReturnedVerdict": false,
     "acceptedConcern": "An advanced sequence alone does not prove the in-page physics action has settled.",
     "remediation": "Every remote observation now reports actionInProgress and the prompt waits for false before another action.",
-    "validation": "Targeted tests, full 128/128 suite, production build, and diff hygiene passed.",
+    "validation": "Targeted tests, full 129/129 suite, production build, and diff hygiene passed.",
     "sourceCommit": "2f3fb5b36baa5920ccb2845b0b7f533cb67db301",
     "liveContractCheck": {
       "testedAt": "2026-09-02T17:35:35Z",
@@ -72,6 +72,13 @@
       "releaseAccepted": true,
       "temporaryIpDailyLimit": 4,
       "temporaryOverrideRemoved": true
+    },
+    "lifecycleLockHardening": {
+      "acceptedConcern": "The prior 30-second command lock was shorter than the bounded 120-second function lifetime.",
+      "commandLockSeconds": 150,
+      "cleanupLockSeconds": 30,
+      "sharedOwnedLockKey": true,
+      "validation": "Tests assert distinct TTLs, owned compare-and-delete release, and shared lifecycle serialization."
     }
   }
 }

@@ -7,6 +7,8 @@ const PENDING_LEASE_SECONDS = 2 * 60;
 const UNCERTAIN_PROVIDER_SECONDS = 2 * 60 * 60;
 const RECORD_TTL_SECONDS = 2 * 24 * 60 * 60;
 const SWEEP_HEARTBEAT_MAX_AGE_SECONDS = 10 * 60;
+const CLEANUP_LOCK_SECONDS = 30;
+const COMMAND_LOCK_SECONDS = 150;
 
 const RESERVE_SCRIPT = `-- saa.reserve.v1
 local epoch = redis.call("GET", KEYS[1]) or "0"
@@ -458,7 +460,7 @@ async function releaseLeaseLock(lock, redis = redisFromEnv()) {
 }
 
 export async function acquireCleanupLock(leaseId, redis = redisFromEnv()) {
-  return await acquireLeaseLock("lifecycle", leaseId, 30, redis);
+  return await acquireLeaseLock("lifecycle", leaseId, CLEANUP_LOCK_SECONDS, redis);
 }
 
 export async function releaseCleanupLock(lock, redis = redisFromEnv()) {
@@ -466,7 +468,7 @@ export async function releaseCleanupLock(lock, redis = redisFromEnv()) {
 }
 
 export async function acquireCommandLock(leaseId, redis = redisFromEnv()) {
-  const lock = await acquireLeaseLock("lifecycle", leaseId, 30, redis);
+  const lock = await acquireLeaseLock("lifecycle", leaseId, COMMAND_LOCK_SECONDS, redis);
   if (!lock) throw new Error("Arena command already in progress.");
   return lock;
 }
