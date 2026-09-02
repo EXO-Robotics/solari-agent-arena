@@ -160,3 +160,21 @@ Final result:
 - Confidence in architecture and claim honesty: strong.
 - Solari is load-bearing and materially improves Robot-3D-Sim: yes.
 - **`RELEASE`.**
+
+## Final production-function inventory review
+
+Vercel deployment inspection found one presentation-surface defect after the full-product signoff: `api/arena-command.test.mjs` was being packaged as a production Serverless Function solely because it lived under `api/`. Commit `3708145` moved the unchanged test to `server/lib/arena-command-api.test.mjs` and adjusted its relative import. This reduces the deployed surface without changing the Arena command handler, trust boundary, or public protocol.
+
+Post-fix verification passed the full 127/127 suite and production build. Production deployment `dpl_446mz686gSdG25rfc5TiMupzk3vG` was `Ready`; its inventory contains only the five intended functions (`agent-evaluate`, `arena-command`, `arena-expire`, `arena-ticket`, and `evaluate`). The canonical site returned 200, practice status returned 200/enabled, both isolated-evaluation APIs returned 503/paused, and the removed test route returned 404.
+
+The first narrow advisory attempt (`01a062de-5241-7ee0-b642-345cb0a4703a`) tried to query Git metadata intentionally omitted from the sanitized archive and exhausted its turn budget. It produced no verdict and was not counted as approval.
+
+Fresh independent delta-review session `01a062df-fafe-7811-95c0-a87547995397` received the complete mechanical diff and the post-deploy evidence with web search, subagents, and write tools disabled. It concluded:
+
+- Critical: 0; High: 0; Medium: 0; Low: 0.
+- The change correctly removes an accidental production Function and shrinks the deployed attack surface.
+- The import relocation, test execution, deployment inventory, and 404 close the only plausible packaging concerns.
+- Architecture and claims remain unchanged with high confidence.
+- Solari remains load-bearing and materially improves Robot-3D-Sim.
+- Prior score remains **9.8/10; exact final state effectively 10/10**.
+- **`RELEASE`.**
