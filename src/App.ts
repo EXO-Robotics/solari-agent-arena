@@ -748,6 +748,7 @@ export class App {
       version: AGENT_TOOL_VERSION,
       reset: (seed = 42) => this.resetAgentFromTool(seed),
       observe: () => this.observeAgent(),
+      actionInProgress: () => this.agentCommand !== null,
       act: (input) => this.actAgent(input),
       transcript: () => this.agentTrial.transcript(),
       manifest: () => ({ course: structuredClone(this.activeCourse.course) }),

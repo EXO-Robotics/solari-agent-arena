@@ -12,12 +12,14 @@ const claims = {
 const observation = {
   phase: "running", simulatedTimeSeconds: 1.2, position: { x: 3, y: 0.5, height: 1.1 }, yawRadians: 0.2,
   speedMps: 0.8, bodyPitchRadians: 0.01, checkpoints: { reached: 1, total: 3, nextId: "wide-turn" },
-  collisions: 0, actionsUsed: 2, actionBudget: 48,
+  collisions: 0, actionsUsed: 2, actionBudget: 48, actionInProgress: true,
 };
 
 describe("remote practice disclosure boundary", () => {
   it("returns exact pose only on the state track", () => {
-    expect(formatPracticeObservation(claims, observation)).toMatchObject({ position: { x: 3 }, yawRadians: 0.2, nextExpectedSequence: 2 });
+    expect(formatPracticeObservation(claims, observation)).toMatchObject({
+      position: { x: 3 }, yawRadians: 0.2, nextExpectedSequence: 2, actionInProgress: true,
+    });
   });
 
   it("recursively omits pose, yaw, velocity, pitch, and checkpoint coordinates on vision", () => {
@@ -53,7 +55,7 @@ describe("remote practice disclosure boundary", () => {
   });
 
   it("treats the tool API, not an early DOM marker, as Arena readiness", () => {
-    const readyApi = Object.fromEntries(["reset", "manifest", "observe", "transcript", "act"].map((method) => [method, () => method]));
+    const readyApi = Object.fromEntries(["reset", "manifest", "observe", "actionInProgress", "transcript", "act"].map((method) => [method, () => method]));
     expect(arenaToolApiReady({ agentPhaseElement: true })).toBe(false);
     expect(arenaToolApiReady({ ...readyApi, act: undefined })).toBe(false);
     expect(arenaToolApiReady(readyApi)).toBe(true);

@@ -37,6 +37,7 @@ describe("course library", () => {
     expect(prompt).toContain("ARENA_HTTP_UNAVAILABLE");
     expect(prompt).toContain("Never retry an Act blindly");
     expect(prompt).toContain("observe_before_retry");
+    expect(prompt).toContain("actionInProgress=false");
     expect(prompt).toContain("courseId=arena-slalom-ramp-v1");
   });
 

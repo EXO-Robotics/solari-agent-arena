@@ -20,6 +20,7 @@
     "completedCommandResultCannotBeOverwrittenByDetachFailure": true,
     "secretFreeFailureClassification": true,
     "ambiguousActionRecovery": "observe_before_retry",
+    "settlementSignal": "actionInProgress",
     "blindActionRetryAllowed": false
   },
   "result": {
@@ -53,5 +54,11 @@
     "temporaryOverrideRemoved": true,
     "finalProductionUsesDefaultIpDailyLimit": 2,
     "isolatedEvaluationEnabled": false
+  },
+  "reviewFollowUp": {
+    "firstReviewAttemptReturnedVerdict": false,
+    "acceptedConcern": "An advanced sequence alone does not prove the in-page physics action has settled.",
+    "remediation": "Every remote observation now reports actionInProgress and the prompt waits for false before another action.",
+    "validation": "Targeted tests, full 128/128 suite, production build, and diff hygiene passed."
   }
 }

@@ -16,7 +16,7 @@ const BROWSER_API_VERSION = "0.1.2";
 const BROWSER_PROTOCOL_TIMEOUT_MS = 60_000;
 const BROWSER_CONNECT_ATTEMPTS = 2;
 const BROWSER_CONNECT_BACKOFF_MS = 500;
-const REQUIRED_ARENA_TOOL_METHODS = Object.freeze(["reset", "manifest", "observe", "transcript", "act"]);
+const REQUIRED_ARENA_TOOL_METHODS = Object.freeze(["reset", "manifest", "observe", "actionInProgress", "transcript", "act"]);
 const REMOTE_TICKET_PHASES = new Set([
   "admission-creating", "provider-create", "admission-commit", "cleanup-schedule",
   "browser-connect", "arena-navigate", "arena-ready", "binding-verify",
@@ -134,7 +134,11 @@ async function readLoadedState(page) {
   return page.evaluate(() => {
     const arena = window.solariAgentArena;
     if (!arena) throw new Error("Arena tools are not ready.");
-    return { manifest: arena.manifest(), observation: arena.observe(), transcript: arena.transcript() };
+    return {
+      manifest: arena.manifest(),
+      observation: { ...arena.observe(), actionInProgress: arena.actionInProgress() },
+      transcript: arena.transcript(),
+    };
   });
 }
 
@@ -162,6 +166,7 @@ export function formatPracticeObservation(claims, observation) {
     simulatedTimeSeconds: observation.simulatedTimeSeconds,
     simulatedTimeRemainingSeconds: Math.max(0, claims.maxSeconds - observation.simulatedTimeSeconds),
     nextExpectedSequence: observation.actionsUsed,
+    actionInProgress: observation.actionInProgress === true,
   };
   if (claims.track === "vision-v1") return shared;
   return {
@@ -260,7 +265,11 @@ export async function issuePracticeTicket({ courseId, seed, track }, admission) 
         const arena = window.solariAgentArena;
         if (!arena) throw new Error("Arena tools are not ready.");
         arena.reset(requestedSeed);
-        return { manifest: arena.manifest(), observation: arena.observe(), transcript: arena.transcript() };
+        return {
+          manifest: arena.manifest(),
+          observation: { ...arena.observe(), actionInProgress: arena.actionInProgress() },
+          transcript: arena.transcript(),
+        };
       }, seed);
       verifyLoadedState(claims, loaded);
     } finally {
@@ -343,7 +352,11 @@ export async function actPractice(arenaSession, input) {
       const arena = window.solariAgentArena;
       if (!arena) throw new Error("Arena tools are not ready.");
       const observation = await arena.act(action);
-      return { manifest: arena.manifest(), observation, transcript: arena.transcript() };
+      return {
+        manifest: arena.manifest(),
+        observation: { ...observation, actionInProgress: arena.actionInProgress() },
+        transcript: arena.transcript(),
+      };
     }, input));
     verifyLoadedState(claims, loaded);
     return {
